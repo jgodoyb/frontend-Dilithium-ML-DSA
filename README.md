@@ -28,7 +28,7 @@ npm install
 ```
 
 ### 3. Configurar Variables de Entorno
-Copia el archivo `.env.example` a `.env` y configura los valores requeridos:
+Copia el archivo `.env.example` a `.env` y configura tus valores locales:
 
 ```bash
 cp .env.example .env
@@ -37,9 +37,9 @@ cp .env.example .env
 Configura en tu `.env`:
 ```env
 VITE_API_URL=http://localhost:8000
-VITE_SUPABASE_PROJECT_ID=mszqkxkaonuoemyjjhff
-VITE_SUPABASE_URL=https://mszqkxkaonuoemyjjhff.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=tu_anon_key_de_supabase
+VITE_SUPABASE_PROJECT_ID=tu_project_id
+VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=tu_clave_publica_anon_de_supabase
 ```
 
 ### 4. Ejecutar el servidor de desarrollo
@@ -56,9 +56,9 @@ La aplicación estará disponible en `http://localhost:8080` (o el puerto config
 1. Conecta este repositorio en Vercel.
 2. Añade las siguientes Variables de Entorno en el panel de Vercel:
    - `VITE_API_URL`: URL pública de tu API Backend.
-   - `VITE_SUPABASE_URL`: `https://mszqkxkaonuoemyjjhff.supabase.co`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`: Tu clave pública `anon`.
-   - `VITE_SUPABASE_PROJECT_ID`: `mszqkxkaonuoemyjjhff`
+   - `VITE_SUPABASE_URL`: URL de tu proyecto Supabase (`https://....supabase.co`).
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`: Tu clave pública `anon` de Supabase.
+   - `VITE_SUPABASE_PROJECT_ID`: El ID de tu proyecto Supabase.
 3. Ejecutar comando de build: `npm run build`.
 
 ---
