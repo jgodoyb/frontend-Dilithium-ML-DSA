@@ -1,73 +1,68 @@
-# Welcome to your Lovable project
+# 🛡️ Front-end Dilithium ML-DSA (Post-Quantum Cryptography)
 
-## Project info
+Plataforma web profesional para la generación de claves, firma digital y verificación de documentos basada en el estándar de criptografía poscuántica **CRYSTALS-Dilithium (ML-DSA)**.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+---
 
-## How can I edit this code?
+## 🚀 Tecnologías Utilizadas
 
-There are several ways of editing your application.
+- **Framework**: React 18 + TypeScript + Vite
+- **Estilos**: Tailwind CSS + Shadcn UI + Lucide Icons
+- **Backend / Auth / BD**: Supabase (`@supabase/supabase-js`)
+- **Procesamiento de Documentos**: `pdf-lib` + `katex` + `qrcode`
+- **Testing**: Vitest + React Testing Library
 
-**Use Lovable**
+---
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## 🛠️ Instalación y Desarrollo Local
 
-Changes made via Lovable will be committed automatically to this repo.
+### 1. Requisitos Previos
+- Node.js (v18+)
+- npm o bun
 
-**Use your preferred IDE**
+### 2. Clonar el proyecto e instalar dependencias
+```bash
+git clone https://github.com/jgodoyb/front-Dilithium-ML-DSA.git
+cd front-Dilithium-ML-DSA
+npm install
+```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 3. Configurar Variables de Entorno
+Copia el archivo `.env.example` a `.env` y configura los valores requeridos:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+cp .env.example .env
+```
 
-Follow these steps:
+Configura en tu `.env`:
+```env
+VITE_API_URL=http://localhost:8000
+VITE_SUPABASE_PROJECT_ID=mszqkxkaonuoemyjjhff
+VITE_SUPABASE_URL=https://mszqkxkaonuoemyjjhff.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=tu_anon_key_de_supabase
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 4. Ejecutar el servidor de desarrollo
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+La aplicación estará disponible en `http://localhost:8080` (o el puerto configurado en Vite).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## 📦 Despliegue en Producción (Vercel)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+1. Conecta este repositorio en Vercel.
+2. Añade las siguientes Variables de Entorno en el panel de Vercel:
+   - `VITE_API_URL`: URL pública de tu API Backend.
+   - `VITE_SUPABASE_URL`: `https://mszqkxkaonuoemyjjhff.supabase.co`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`: Tu clave pública `anon`.
+   - `VITE_SUPABASE_PROJECT_ID`: `mszqkxkaonuoemyjjhff`
+3. Ejecutar comando de build: `npm run build`.
 
-## What technologies are used for this project?
+---
 
-This project is built with:
+## 📄 Licencia
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Este proyecto está desarrollado bajo licencia MIT.
