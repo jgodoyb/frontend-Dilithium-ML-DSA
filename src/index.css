@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 16% 6%;
+    --foreground: 210 20% 92%;
+
+    --card: 220 14% 10%;
+    --card-foreground: 210 20% 90%;
+
+    --popover: 220 14% 10%;
+    --popover-foreground: 210 20% 90%;
+
+    --primary: 172 66% 50%;
+    --primary-foreground: 220 16% 6%;
+
+    --secondary: 220 14% 14%;
+    --secondary-foreground: 210 20% 80%;
+
+    --muted: 220 12% 14%;
+    --muted-foreground: 215 12% 55%;
+
+    --accent: 172 66% 50%;
+    --accent-foreground: 220 16% 6%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 12% 18%;
+    --input: 220 12% 16%;
+    --ring: 172 66% 50%;
+
+    --radius: 0.75rem;
+
+    /* Level accent colors */
+    --level-2: 190 90% 55%;
+    --level-3: 160 70% 45%;
+    --level-5: 270 60% 60%;
+
+    /* Blueprint level colors (0-11) */
+    --bp-0: 142 70% 45%;
+    --bp-1: 152 65% 42%;
+    --bp-2: 172 66% 50%;
+    --bp-3: 190 80% 50%;
+    --bp-4: 210 75% 55%;
+    --bp-5: 240 65% 60%;
+    --bp-6: 260 60% 58%;
+    --bp-7: 280 55% 55%;
+    --bp-8: 300 50% 52%;
+    --bp-9: 330 60% 55%;
+    --bp-10: 15 75% 55%;
+    --bp-11: 40 85% 55%;
+
+    --sidebar-background: 220 14% 8%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 172 66% 50%;
+    --sidebar-primary-foreground: 220 16% 6%;
+    --sidebar-accent: 220 14% 14%;
+    --sidebar-accent-foreground: 210 20% 80%;
+    --sidebar-border: 220 12% 18%;
+    --sidebar-ring: 172 66% 50%;
+
+    /* Particle color */
+    --particle-color: 0 0% 100%;
+  }
+
+  .light {
+    --background: 210 20% 96%;
+    --foreground: 220 16% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 16% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 16% 12%;
+
+    --primary: 172 66% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 15% 92%;
+    --secondary-foreground: 220 14% 30%;
+
+    --muted: 210 12% 90%;
+    --muted-foreground: 215 12% 45%;
+
+    --accent: 172 66% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 12% 85%;
+    --input: 220 12% 88%;
+    --ring: 172 66% 40%;
+
+    --sidebar-background: 210 15% 94%;
+    --sidebar-foreground: 220 16% 12%;
+    --sidebar-primary: 172 66% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 15% 90%;
+    --sidebar-accent-foreground: 220 14% 30%;
+    --sidebar-border: 220 12% 85%;
+    --sidebar-ring: 172 66% 40%;
+
+    /* Particle color - dark for light mode */
+    --particle-color: 260 30% 25%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+    transition: background-color 300ms ease, color 300ms ease;
+  }
+
+  *, *::before, *::after {
+    transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
+  }
+
+  code, .font-mono, .mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* KaTeX overrides for dark theme */
+/* KaTeX overrides - theme-aware */
+.katex {
+  color: hsl(var(--foreground)) !important;
+  font-size: 1.05em !important;
+}
+
+.katex .mord, .katex .mbin, .katex .mrel, .katex .mopen, .katex .mclose, .katex .mpunct {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Subtle card hover */
+.pro-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pro-card:hover {
+  border-color: hsl(var(--primary) / 0.3);
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.05);
+}
+
+/* Accent underline */
+.accent-line {
+  position: relative;
+}
+.accent-line::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 40px;
+  height: 2px;
+  background: hsl(var(--primary));
+  border-radius: 1px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.4);
+}
+
+/* Level color utilities */
+.level-2-accent { color: hsl(var(--level-2)); }
+.level-3-accent { color: hsl(var(--level-3)); }
+.level-5-accent { color: hsl(var(--level-5)); }
+
+.level-2-bg { background-color: hsl(var(--level-2) / 0.1); border-color: hsl(var(--level-2) / 0.3); }
+.level-3-bg { background-color: hsl(var(--level-3) / 0.1); border-color: hsl(var(--level-3) / 0.3); }
+.level-5-bg { background-color: hsl(var(--level-5) / 0.1); border-color: hsl(var(--level-5) / 0.3); }
