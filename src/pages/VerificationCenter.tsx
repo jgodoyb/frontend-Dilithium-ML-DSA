@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { validatePdf } from "@/lib/validatePdf";
 import { sanitizeSignerId } from "@/lib/security";
 import { supabase } from "@/integrations/supabase/client";
-
+import { calculateHashFromBytes } from "@/lib/crypto";
 
 const VERIFY_MATH_TERMS = ["Verify(pk, M, σ)", "μ = CRH(tr)", "w1' = HighBits", "c' = H(μ || w1')", "||z|| < γ1 - β", "A·z - c·t", "Lattice N=256"];
 const VERIFY_PARTICLES = Array.from({ length: 25 }).map((_, i) => ({
@@ -355,24 +355,22 @@ const VerificationCenter = () => {
         return;
       }
 
-      // 3. Reconstruir el archivo binario de la firma a partir del Base64
-      const binary = atob(envelope.signature_b64);
-      const sigBytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        sigBytes[i] = binary.charCodeAt(i);
-      }
-      const rawSignatureBlob = new Blob([sigBytes], { type: "application/octet-stream" });
+      // 3. Calcular hash SHA-256 de los bytes limpios del PDF
+      const documentHashHex = await calculateHashFromBytes(cleanPdfBytes);
 
       // 4. Call backend /api/verify
       const apiUrl = import.meta.env.VITE_API_URL;
-      const formData = new FormData();
-      formData.append("file", cleanPdfBlob, docFile.name);
-      formData.append("signature", rawSignatureBlob, "signature.sig");
-      formData.append("public_key", userData.public_key);
 
       const response = await fetch(`${apiUrl}/api/verify`, {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          document_hash: documentHashHex,
+          signature_b64: envelope.signature_b64,
+          public_key: userData.public_key
+        }),
       });
 
       if (!response.ok) {

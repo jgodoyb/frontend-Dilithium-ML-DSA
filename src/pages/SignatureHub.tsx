@@ -19,7 +19,7 @@ import { validatePdf } from "@/lib/validatePdf";
 import { supabase } from "@/integrations/supabase/client";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
-
+import { calculateHashFromBytes } from "@/lib/crypto";
 
 
 const SIGN_MATH_TERMS = ["Sign(sk, M)", "y ← S1", "w1 = HighBits(A·y)", "c = H(μ || w1)", "z = y + c·s1", "Rejection Sample", "Lattice K=4, L=4"];
@@ -257,15 +257,15 @@ const SignatureHub = () => {
 
 
       const apiUrl = import.meta.env.VITE_API_URL;
-      const formData = new FormData();
-      formData.append("file", modifiedPdfBlob, rawFile.name);
+      const documentHashHex = await calculateHashFromBytes(modifiedPdfBytes);
 
       const response = await fetch(`${apiUrl}/api/sign`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: formData,
+        body: JSON.stringify({ document_hash: documentHashHex }),
       });
 
       if (!response.ok) {
