@@ -503,7 +503,7 @@ const SignatureHub = () => {
                       Subir Documento
                     </p>
                     <p className="text-[10px] text-slate-500 font-mono tracking-wider">
-                      DRAG & DROP O CLIC (.PDF MÁX 10MB)
+                      DRAG & DROP O CLIC (.PDF MÁX 100MB)
                     </p>
                   </div>
                 </motion.div>

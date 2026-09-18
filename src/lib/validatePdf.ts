@@ -25,7 +25,7 @@ export interface PdfValidationResult {
 /** PDF magic bytes: %PDF */
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46]; // %PDF
 
-const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 
 export async function validatePdf(file: File): Promise<PdfValidationResult> {
   // ── 1. Size guard ──────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ export async function validatePdf(file: File): Promise<PdfValidationResult> {
     return { valid: false, reason: "El archivo está vacío." };
   }
   if (file.size > MAX_SIZE_BYTES) {
-    return { valid: false, reason: "El tamaño máximo permitido es 10 MB." };
+    return { valid: false, reason: "El tamaño máximo permitido es 100 MB." };
   }
 
   // ── 2. Magic-bytes check ───────────────────────────────────────────────────
