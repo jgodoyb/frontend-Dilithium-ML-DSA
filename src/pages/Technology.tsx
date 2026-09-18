@@ -68,7 +68,7 @@ const Technology = () => {
         duration: 0.7, 
         ease: [0.25, 0.1, 0.25, 1],
       }}
-      className="min-h-screen bg-black text-white font-sans selection:bg-[#0e7490] selection:text-white relative"
+      className="min-h-screen bg-black text-white font-sans selection:bg-[#0e7490] selection:text-white relative overflow-x-hidden"
     >
       {/* FONDO DINÁMICO GLOBAL (Lattice Atado) */}
       <div className="fixed inset-0 pointer-events-none z-0 opacity-15 mix-blend-screen overflow-hidden">
