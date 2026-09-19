@@ -64,7 +64,7 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
             : "bg-background/80 backdrop-blur-sm"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 h-14 grid grid-cols-[auto_1fr_auto] items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           {/* Brand */}
           <Link to="/" className="flex items-center gap-2 group">
             {/* New Logo SVG Placeholder based on the image */}
@@ -114,89 +114,91 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
             })}
           </div>
 
-          {/* Right side */}
+          {/* Right side actions */}
+          <div className="flex items-center gap-2">
             <div className="hidden md:flex items-center justify-end gap-3">
-
-            <AnimatePresence mode="wait">
-              {isAuthenticated ? (
-                <motion.div
-                  key="avatar"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="flex items-center gap-2 rounded-full pl-1 pr-2.5 py-1 hover:bg-secondary/50 transition-colors">
-                        <Avatar className="w-7 h-7">
-                          {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} className="object-cover" />}
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                            {user?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <div className="px-3 py-2">
-                        <p className="text-sm font-medium">{user?.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                      </div>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => navigate("/dashboard/identity")}>
-                        <User className="w-4 h-4 mr-2" />
-                        Mi Identidad
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => { logout(); navigate("/"); }} className="text-destructive focus:text-destructive">
-                        <LogOut className="w-4 h-4 mr-2" />
-                        Cerrar Sesión
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="buttons"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex items-center gap-2"
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => navigate("/auth?mode=login")}
+              <AnimatePresence mode="wait">
+                {isAuthenticated ? (
+                  <motion.div
+                    key="avatar"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
                   >
-                    {isAuthenticated ? (
-                      "Acceso"
-                    ) : (
-                      "Iniciar Sesión"
-                    )}
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => navigate("/auth?mode=register")}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex items-center gap-2 rounded-full pl-1 pr-2.5 py-1 hover:bg-secondary/50 transition-colors">
+                          <Avatar className="w-7 h-7">
+                            {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} className="object-cover" />}
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                              {user?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <div className="px-3 py-2">
+                          <p className="text-sm font-medium">{user?.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                        </div>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => navigate("/dashboard/identity")}>
+                          <User className="w-4 h-4 mr-2" />
+                          Mi Identidad
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => { logout(); navigate("/"); }} className="text-destructive focus:text-destructive">
+                          <LogOut className="w-4 h-4 mr-2" />
+                          Cerrar Sesión
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="buttons"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-2"
                   >
-                    Registrarse
-                  </Button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => navigate("/auth?mode=login")}
+                    >
+                      {isAuthenticated ? (
+                        "Acceso"
+                      ) : (
+                        "Iniciar Sesión"
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => navigate("/auth?mode=register")}
+                    >
+                      Registrarse
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-          {/* Mobile toggle */}
-          <div className="flex md:hidden items-center gap-2">
-            <button
-              className="text-muted-foreground"
-              onClick={() => setMobileOpen(!mobileOpen)}
-            >
-              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
+            {/* Mobile toggle */}
+            <div className="flex md:hidden items-center">
+              <button
+                className="p-2 -mr-2 text-slate-300 hover:text-white transition-colors rounded-lg hover:bg-white/5 focus:outline-none"
+                onClick={() => setMobileOpen(!mobileOpen)}
+                aria-label="Abrir menú"
+              >
+                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
         </div>
 

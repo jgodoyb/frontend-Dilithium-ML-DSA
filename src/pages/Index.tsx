@@ -46,28 +46,28 @@ const Index = () => {
         </div>
 
         {/* Contenido sobre el vídeo y máscaras */}
-        <div className="relative z-10 w-full max-w-[1500px] mx-auto px-6 md:px-12 xl:px-20 pt-20">
+        <div className="relative z-10 w-full max-w-[1500px] mx-auto px-4 sm:px-6 md:px-12 xl:px-20 pt-20">
           <motion.div
             className="max-w-4xl"
             variants={staggerContainer}
             initial="hidden"
             animate="show"
           >
-            <motion.div variants={fadeUp} className="mb-6">
-              <span className="inline-block border-l-4 border-[#0e7490] pl-4 text-[#0e7490] font-bold tracking-[0.2em] uppercase text-sm">
+            <motion.div variants={fadeUp} className="mb-4 sm:mb-6">
+              <span className="inline-block border-l-4 border-[#0e7490] pl-3 sm:pl-4 text-[#0e7490] font-bold tracking-[0.2em] uppercase text-xs sm:text-sm">
                 Next-Gen Infrastructure
               </span>
             </motion.div>
 
             <motion.h1
               variants={fadeUp}
-              className="text-white text-5xl md:text-7xl lg:text-[90px] font-bold tracking-tighter leading-[1.05] mb-8"
-              dangerouslySetInnerHTML={{ __html: "Forjando confianza <br/> en un mundo post-cuántico." }}
+              className="text-white text-3xl sm:text-5xl md:text-7xl lg:text-[88px] font-bold tracking-tight leading-[1.12] sm:leading-[1.05] mb-6 sm:mb-8"
+              dangerouslySetInnerHTML={{ __html: "Forjando confianza <br class='hidden sm:block'/> en un mundo post-cuántico." }}
             />
 
             <motion.p
               variants={fadeUp}
-              className="text-slate-300 text-lg md:text-2xl font-light leading-snug max-w-2xl mb-12"
+              className="text-slate-300 text-sm sm:text-lg md:text-2xl font-light leading-relaxed max-w-2xl mb-8 sm:mb-12"
             >
               Implementación inquebrantable del marco criptográfico ML-DSA-65. Seguridad matemática profunda para infraestructuras corporativas y gubernamentales.
             </motion.p>
@@ -75,7 +75,7 @@ const Index = () => {
             <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4">
               <button
                 onClick={() => navigate('/auth')}
-                className="relative group inline-flex items-center justify-center gap-3 h-14 px-10 mt-4 bg-[#0a0a0a] border border-white/10 hover:border-[#0e7490]/50 overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all"
+                className="relative group inline-flex items-center justify-center gap-3 h-12 sm:h-14 px-8 sm:px-10 mt-2 sm:mt-4 bg-[#0a0a0a] border border-white/10 hover:border-[#0e7490]/50 overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all w-full sm:w-auto"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-[#0e7490]/0 via-[#0e7490]/20 to-[#0e7490]/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out"></div>
                 <span className="relative z-10 text-white font-mono text-xs tracking-[0.2em] uppercase">Explorar Funciones</span>
@@ -108,17 +108,17 @@ const Index = () => {
       </div>
 
       {/* 🔴 SECCIÓN 2: TRANSFORMACIÓN CORPORATIVA */}
-      <section className="py-24 md:py-32 bg-black relative z-10">
-        <div className="max-w-[1500px] mx-auto px-6 md:px-12 xl:px-20 grid lg:grid-cols-[1fr_1.5fr] gap-16 lg:gap-24">
+      <section className="py-16 md:py-32 bg-black relative z-10">
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 md:px-12 xl:px-20 grid lg:grid-cols-[1fr_1.5fr] gap-12 lg:gap-24">
 
           <motion.div
             initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 1 }}
           >
             <h2
-              className="text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight mb-6"
-              dangerouslySetInnerHTML={{ __html: "El algoritmo de Shor no es una teoría. <br/> Es una línea de tiempo." }}
+              className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight mb-6"
+              dangerouslySetInnerHTML={{ __html: "El algoritmo de Shor no es una teoría. <br class='hidden sm:block'/> Es una línea de tiempo." }}
             />
-            <p className="text-lg text-slate-400 font-light leading-relaxed mb-8">
+            <p className="text-sm sm:text-lg text-slate-400 font-light leading-relaxed mb-8">
               En la carrera por supremacía computacional, la ventana de seguridad del RSA clásico se cierra rápidamente. Proporcionamos resistencia matemática probada para un mañana incierto.
             </p>
             <div className="w-24 h-1 bg-[#0e7490]"></div>
@@ -127,45 +127,45 @@ const Index = () => {
           {/* Grid asimétrico de valores (Offset Layout) */}
           <motion.div
             variants={staggerContainer} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }}
-            className="grid sm:grid-cols-2 gap-x-8 gap-y-16"
+            className="grid sm:grid-cols-2 gap-x-8 gap-y-10 sm:gap-y-16"
           >
             <motion.div variants={fadeUp}>
-              <h3 className="text-7xl font-bold text-white mb-2 font-mono">01</h3>
-              <h4 className="text-2xl font-bold mb-3 border-l-2 border-[#0e7490] pl-4 text-white">Cero Conocimiento</h4>
-              <p className="text-slate-400">Su arquitectura se apoya en LWE matemáticos impidiendo falsificaciones algorítmicas, sin compartir datos sensibles.</p>
+              <h3 className="text-5xl sm:text-7xl font-bold text-white mb-2 font-mono">01</h3>
+              <h4 className="text-xl sm:text-2xl font-bold mb-3 border-l-2 border-[#0e7490] pl-4 text-white">Cero Conocimiento</h4>
+              <p className="text-slate-400 text-sm sm:text-base">Su arquitectura se apoya en LWE matemáticos impidiendo falsificaciones algorítmicas, sin compartir datos sensibles.</p>
             </motion.div>
 
             <motion.div variants={fadeUp} className="sm:mt-12">
-              <h3 className="text-7xl font-bold text-white mb-2 font-mono">02</h3>
-              <h4 className="text-2xl font-bold mb-3 border-l-2 border-white/20 pl-4 text-white">Despliegue Nativo</h4>
-              <p className="text-slate-400">Integración invisible en flujos documentales preexistentes, sin sobrecargar la infraestructura del cliente.</p>
+              <h3 className="text-5xl sm:text-7xl font-bold text-white mb-2 font-mono">02</h3>
+              <h4 className="text-xl sm:text-2xl font-bold mb-3 border-l-2 border-white/20 pl-4 text-white">Despliegue Nativo</h4>
+              <p className="text-slate-400 text-sm sm:text-base">Integración invisible en flujos documentales preexistentes, sin sobrecargar la infraestructura del cliente.</p>
             </motion.div>
 
             <motion.div variants={fadeUp}>
-              <h3 className="text-7xl font-bold text-white mb-2 font-mono">03</h3>
-              <h4 className="text-2xl font-bold mb-3 border-l-2 border-white/20 pl-4 text-white">Auditable</h4>
-              <p className="text-slate-400">Protocolos expuestos transparentemente bajo normativas FIPS 204. No pedimos fe, entregamos evidencia criptográfica.</p>
+              <h3 className="text-5xl sm:text-7xl font-bold text-white mb-2 font-mono">03</h3>
+              <h4 className="text-xl sm:text-2xl font-bold mb-3 border-l-2 border-white/20 pl-4 text-white">Auditable</h4>
+              <p className="text-slate-400 text-sm sm:text-base">Protocolos expuestos transparentemente bajo normativas FIPS 204. No pedimos fe, entregamos evidencia criptográfica.</p>
             </motion.div>
           </motion.div>
         </div>
       </section>
 
       {/* 🔴 SECCIÓN 3: SHOWCASE DE SOLUCIÓN ASIMÉTRICO */}
-      <section className="bg-black py-24 border-y border-white/10 overflow-hidden">
-        <div className="max-w-[1500px] mx-auto px-6 md:px-12 xl:px-20">
+      <section className="bg-black py-16 md:py-24 border-y border-white/10 overflow-hidden">
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 md:px-12 xl:px-20">
 
           <div className="grid lg:grid-cols-2 gap-0 relative items-center">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: 1.2 }}
-              className="bg-[#0a0a0a] border border-white/10 shadow-2xl text-white p-12 md:p-20 relative z-10 lg:w-[110%]"
+              className="bg-[#0a0a0a] border border-white/10 shadow-2xl text-white p-6 sm:p-12 md:p-20 relative z-10 lg:w-[110%]"
               style={{ clipPath: "polygon(0 0, 100% 0, 95% 100%, 0% 100%)" }}
             >
-              <h3 className="text-[#0e7490] uppercase tracking-widest text-sm font-bold mb-6">Plataforma Operativa</h3>
+              <h3 className="text-[#0e7490] uppercase tracking-widest text-xs sm:text-sm font-bold mb-4 sm:mb-6">Plataforma Operativa</h3>
               <h2
-                className="text-4xl md:text-5xl font-bold tracking-tight mb-8"
-                dangerouslySetInnerHTML={{ __html: "Despliega Firmas <br/> Inquebrantables Hoy." }}
+                className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-6 sm:mb-8"
+                dangerouslySetInnerHTML={{ __html: "Despliega Firmas <br class='hidden sm:block'/> Inquebrantables Hoy." }}
               />
-              <p className="text-slate-400 text-lg mb-8 font-light">
+              <p className="text-slate-400 text-sm sm:text-lg mb-6 sm:mb-8 font-light">
                 Pasa de la teoría a la práctica. Accede a nuestra infraestructura de firma documental, genera claves blindadas y firma tus archivos localmente en segundos.
               </p>
               <ul className="space-y-4 mb-12">

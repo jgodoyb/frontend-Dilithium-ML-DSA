@@ -85,26 +85,26 @@ const Technology = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
         </div>
         
-        <div className="relative z-20 max-w-[1400px] mx-auto px-6 w-full text-center lg:text-left">
+        <div className="relative z-20 max-w-[1400px] mx-auto px-4 sm:px-6 w-full text-center lg:text-left">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1 }}
-            className="flex items-center justify-center lg:justify-start gap-4 mb-8"
+            className="flex items-center justify-center lg:justify-start gap-4 mb-6 sm:mb-8"
           >
-            <div className="w-12 h-[2px] bg-gradient-to-r from-purple-500 to-cyan-500" />
-            <span className="text-[10px] font-bold tracking-[0.4em] uppercase text-slate-400">
+            <div className="w-8 sm:w-12 h-[2px] bg-gradient-to-r from-purple-500 to-cyan-500" />
+            <span className="text-[10px] font-bold tracking-[0.3em] sm:tracking-[0.4em] uppercase text-slate-400">
                R&D Architecture & Protocols
             </span>
           </motion.div>
 
-          <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-12 items-end">
+          <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-8 lg:gap-12 items-end">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.2 }}
             >
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[0.95] mb-4">
+              <h1 className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[1.1] sm:leading-[0.95] mb-4">
                 Ingeniería del <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-white to-cyan-400">
                   Rigor Matemático.
@@ -118,7 +118,7 @@ const Technology = () => {
               transition={{ duration: 1, delay: 0.5 }}
               className="lg:pb-6"
             >
-              <p className="text-lg text-slate-400 font-light leading-relaxed max-w-md mx-auto lg:mx-0 lg:border-l-[1px] border-white/10 lg:pl-8">
+              <p className="text-sm sm:text-lg text-slate-400 font-light leading-relaxed max-w-md mx-auto lg:mx-0 lg:border-l-[1px] border-white/10 lg:pl-8">
                 Desglose técnico de la arquitectura ML-DSA-65. 
                 Desde la generación de retículas hasta la validación FIPS 204.
               </p>
@@ -128,7 +128,7 @@ const Technology = () => {
       </section>
 
       {/* STICKY SIDEBAR LAYOUT */}
-      <div className="max-w-[1600px] mx-auto px-6 md:px-12 xl:px-20 grid lg:grid-cols-[280px_1fr] gap-12 lg:gap-24 relative pb-32 z-10 mt-12">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 md:px-12 xl:px-20 grid lg:grid-cols-[280px_1fr] gap-8 lg:gap-24 relative pb-32 z-10 mt-8 sm:mt-12">
         
         {/* SIDEBAR (Panel Izquierdo Pegajoso) */}
         <aside className="hidden lg:block relative">
@@ -153,7 +153,7 @@ const Technology = () => {
         </aside>
 
         {/* CONTENIDO PRINCIPAL A LA DERECHA */}
-        <div className="relative lg:pl-12">
+        <div className="relative lg:pl-12 min-w-0">
           {/* TRACKER VERTICAL ANIMADO (MAGIA) */}
           <div className="hidden lg:block absolute left-0 top-12 bottom-0 w-px bg-white/10 z-0">
              <motion.div 
@@ -163,12 +163,12 @@ const Technology = () => {
              <div className="absolute -left-1 top-0 w-3 h-3 rounded-full bg-[#0e7490] shadow-[0_0_10px_#0e7490]"></div>
           </div>
 
-          <main className="py-10 space-y-32 relative z-10">
+          <main className="py-6 sm:py-10 space-y-16 sm:space-y-32 relative z-10 min-w-0">
           
           {/* CATEGORÍA 1 */}
           <div id="fundamentos" className="scroll-mt-32">
-            <h2 className="text-4xl font-light text-white mb-8 border-b border-white/10 pb-4 flex items-center gap-4">
-              <span className="text-[#0e7490] font-mono text-xl">01</span> Fundamentos
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-6 sm:mb-8 border-b border-white/10 pb-4 flex items-center gap-3 sm:gap-4">
+              <span className="text-[#0e7490] font-mono text-base sm:text-xl">01</span> Fundamentos
             </h2>
             <div className="prose prose-invert max-w-none">
                <HeroSection />
@@ -180,16 +180,16 @@ const Technology = () => {
 
           {/* CATEGORÍA 2: ESTANDAR */}
           <div id="rendimiento" className="scroll-mt-32">
-            <h2 className="text-4xl font-light text-white mb-8 border-b border-white/10 pb-4 flex items-center gap-4">
-               <span className="text-[#0e7490] font-mono text-xl">02</span> Estándar y Rendimiento
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-6 sm:mb-8 border-b border-white/10 pb-4 flex items-center gap-3 sm:gap-4">
+               <span className="text-[#0e7490] font-mono text-base sm:text-xl">02</span> Estándar y Rendimiento
             </h2>
             <NivelesSeguridad />
           </div>
 
           {/* CATEGORÍA 3.1: GENERACION */}
           <div id="generacion" className="scroll-mt-32">
-            <h2 className="text-4xl font-light text-white mb-8 border-b border-white/10 pb-4 flex items-center gap-4">
-               <span className="text-[#0e7490] font-mono text-xl">03</span> Generación de Claves
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-6 sm:mb-8 border-b border-white/10 pb-4 flex items-center gap-3 sm:gap-4">
+               <span className="text-[#0e7490] font-mono text-base sm:text-xl">03</span> Generación de Claves
             </h2>
             <div className="space-y-4">
                <GeneracionClavesSection />
@@ -198,8 +198,8 @@ const Technology = () => {
 
           {/* CATEGORÍA 3.2: FIRMA */}
           <div id="firma" className="scroll-mt-32">
-            <h2 className="text-4xl font-light text-white mb-8 border-b border-white/10 pb-4 flex items-center gap-4">
-               <span className="text-[#0e7490] font-mono text-xl">04</span> Proceso de Firma
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-6 sm:mb-8 border-b border-white/10 pb-4 flex items-center gap-3 sm:gap-4">
+               <span className="text-[#0e7490] font-mono text-base sm:text-xl">04</span> Proceso de Firma
             </h2>
             <div className="space-y-4">
                <FirmaSection />
@@ -208,8 +208,8 @@ const Technology = () => {
 
           {/* CATEGORÍA 5: VERIFICACION */}
           <div id="verificacion" className="scroll-mt-32">
-            <h2 className="text-4xl font-light text-white mb-8 border-b border-white/10 pb-4 flex items-center gap-4">
-               <span className="text-[#0e7490] font-mono text-xl">05</span> Protocolo de Verificación
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-6 sm:mb-8 border-b border-white/10 pb-4 flex items-center gap-3 sm:gap-4">
+               <span className="text-[#0e7490] font-mono text-base sm:text-xl">05</span> Protocolo de Verificación
             </h2>
             <div className="space-y-4">
                <VerificacionSection />
@@ -218,8 +218,8 @@ const Technology = () => {
 
           {/* CATEGORÍA 6: BLUEPRINT */}
           <div id="blueprint" className="scroll-mt-32 pb-32">
-            <h2 className="text-4xl font-light text-white mb-8 border-b border-white/10 pb-4 flex items-center gap-4">
-               <span className="text-[#0e7490] font-mono text-xl">06</span> Mapa de Dependencias
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-6 sm:mb-8 border-b border-white/10 pb-4 flex items-center gap-3 sm:gap-4">
+               <span className="text-[#0e7490] font-mono text-base sm:text-xl">06</span> Mapa de Dependencias
             </h2>
             <div className="space-y-4">
                <AlgorithmBlueprintSection />

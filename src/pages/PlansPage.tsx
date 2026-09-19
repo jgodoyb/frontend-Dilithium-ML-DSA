@@ -160,29 +160,29 @@ const PlansPage = () => {
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[100px] opacity-10" />
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-6 relative z-10">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 relative z-10">
         
         {/* ── STRATEGIC HERO ── */}
-        <div className="mb-20">
+        <div className="mb-12 sm:mb-20">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1 }}
-            className="flex items-center gap-4 mb-8"
+            className="flex items-center gap-4 mb-6 sm:mb-8"
           >
-            <div className="w-12 h-[2px] bg-gradient-to-r from-purple-500 to-cyan-500" />
-            <span className="text-xs font-bold tracking-[0.4em] uppercase text-slate-400">
+            <div className="w-8 sm:w-12 h-[2px] bg-gradient-to-r from-purple-500 to-cyan-500" />
+            <span className="text-[10px] sm:text-xs font-bold tracking-[0.3em] sm:tracking-[0.4em] uppercase text-slate-400">
                Strategic Infrastructure & Licensing
             </span>
           </motion.div>
 
-          <div className="grid lg:grid-cols-2 gap-12 items-end">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-end">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.2 }}
             >
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[0.95] mb-8">
+              <h1 className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[1.1] sm:leading-[0.95] mb-6 sm:mb-8">
                 Resiliencia <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-white to-cyan-400">
                   Criptográfica.
@@ -196,7 +196,7 @@ const PlansPage = () => {
               transition={{ duration: 1, delay: 0.5 }}
               className="lg:pb-4"
             >
-              <p className="text-lg md:text-xl text-slate-400 font-light leading-relaxed max-w-xl border-l-[1px] border-white/10 pl-8">
+              <p className="text-sm sm:text-base md:text-xl text-slate-400 font-light leading-relaxed max-w-xl border-l-[1px] border-white/10 pl-4 sm:pl-8">
                 La supremacía cuántica no es una teoría; es una línea de tiempo competitiva. 
                 Q-Proof redefine la confianza estratégica mediante implementaciones ML-DSA robustas y auditables.
               </p>
@@ -209,7 +209,7 @@ const PlansPage = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          className="flex items-center gap-8 mb-16 border-b border-white/10 pb-8"
+          className="flex flex-wrap items-center gap-4 sm:gap-8 mb-10 sm:mb-16 border-b border-white/10 pb-6 sm:pb-8"
         >
           <div className="flex gap-4">
              <button 

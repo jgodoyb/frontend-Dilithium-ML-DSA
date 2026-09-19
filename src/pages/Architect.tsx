@@ -178,27 +178,27 @@ const Architect = () => {
         <div className="absolute bottom-[-10%] left-[-20%] w-[50%] h-[50%] bg-[#0e7490]/10 blur-[150px] rounded-full mix-blend-screen" />
       </div>
 
-      <main className="max-w-7xl mx-auto px-6 pt-40 pb-24 space-y-32 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-28 sm:pt-40 pb-24 space-y-20 sm:space-y-32 relative z-10">
         {/* ── Hero / Bio: Editorial Split Layout ── */}
-        <section className="relative grid lg:grid-cols-[1fr_450px] items-center gap-16 xl:gap-24">
+        <section className="relative grid lg:grid-cols-[1fr_450px] items-center gap-12 xl:gap-24">
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
-            className="space-y-10"
+            className="space-y-8 sm:space-y-10"
           >
-            <motion.div custom={0} variants={fadeUp} className="space-y-6">
-              <div className="inline-flex items-center gap-3 px-4 py-2 bg-[#0e7490]/10 border border-[#0e7490]/20 rounded-full">
-                 <Shield className="w-4 h-4 text-[#0e7490]" />
-                 <span className="text-[10px] font-black tracking-[0.3em] uppercase text-[#0e7490]">Arquitecto Junior · ID: JG-24-BETA</span>
+            <motion.div custom={0} variants={fadeUp} className="space-y-4 sm:space-y-6">
+              <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 sm:px-4 sm:py-2 bg-[#0e7490]/10 border border-[#0e7490]/20 rounded-full max-w-full">
+                 <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0e7490] shrink-0" />
+                 <span className="text-[9px] sm:text-[10px] font-black tracking-[0.2em] sm:tracking-[0.3em] uppercase text-[#0e7490] truncate">Arquitecto Junior · ID: JG-24-BETA</span>
               </div>
               
               <div className="space-y-2">
-                <h1 className="text-6xl md:text-8xl font-black tracking-tighter text-white leading-[0.9]">
+                <h1 className="text-4xl sm:text-6xl md:text-8xl font-black tracking-tighter text-white leading-[0.9]">
                   JORGE <br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/40">GODOY</span>
                 </h1>
-                <div className="h-1.5 w-24 bg-[#0e7490] rounded-full shadow-[0_0_20px_#0e7490]" />
+                <div className="h-1.5 w-20 sm:w-24 bg-[#0e7490] rounded-full shadow-[0_0_20px_#0e7490]" />
               </div>
 
               <div className="space-y-4 max-w-2xl">
