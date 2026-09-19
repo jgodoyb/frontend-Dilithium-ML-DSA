@@ -61,11 +61,12 @@ const Auth = () => {
   const [organization, setOrganization] = useState("");
   const [masterKey, setMasterKey] = useState("");
   const [confirmKey, setConfirmKey] = useState("");
+  const [honeypot, setHoneypot] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
-  const showRecoveryNow = false; // hardcoded temporarily for layout
+  const [showRecoveryNow, setShowRecoveryNow] = useState(false);
   const { login } = useMockAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -100,6 +101,16 @@ const Auth = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // SECURITY: Anti-Spam Honeypot Check
+    if (honeypot.trim() !== "") {
+      console.warn("Seguridad: Intento automatizado de spam bloqueado.");
+      toast({
+        title: "Procesando solicitud...",
+        description: "Inténtalo de nuevo.",
+      });
+      return;
+    }
+
     // 1. Zod Validation
     const validation = loginSchema.safeParse({ email, password: masterKey });
     if (!validation.success) {
@@ -182,6 +193,16 @@ const Auth = () => {
     e.preventDefault();
     setSubmitAttempted(true);
     setStatusMessage(null);
+
+    // SECURITY: Anti-Spam Honeypot Check
+    if (honeypot.trim() !== "") {
+      console.warn("Seguridad: Intento automatizado de spam bloqueado.");
+      toast({
+        title: "Procesando solicitud...",
+        description: "Inténtalo de nuevo.",
+      });
+      return;
+    }
 
     // 1. Zod Validation
     const validation = registerSchema.safeParse({
@@ -332,6 +353,20 @@ const Auth = () => {
 
         {mode === "login" ? (
           <form onSubmit={handleLogin} className="space-y-4">
+            {/* Honeypot field for anti-spam bot protection */}
+            <div className="hidden h-0 w-0 overflow-hidden pointer-events-none" aria-hidden="true">
+              <Label htmlFor="website_url_hp">Website (no rellenar)</Label>
+              <Input
+                id="website_url_hp"
+                name="website_url_hp"
+                type="text"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="login-email" className="text-xs uppercase tracking-wider text-slate-400 font-medium">Email Corporativo</Label>
               <Input
@@ -398,6 +433,20 @@ const Auth = () => {
           </form>
         ) : (
           <form onSubmit={handleSignUp} className="space-y-4">
+            {/* Honeypot field for anti-spam bot protection */}
+            <div className="hidden h-0 w-0 overflow-hidden pointer-events-none" aria-hidden="true">
+              <Label htmlFor="reg_website_hp">Website (no rellenar)</Label>
+              <Input
+                id="reg_website_hp"
+                name="reg_website_hp"
+                type="text"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="reg-name" className="text-xs uppercase tracking-wider text-slate-400 font-medium">Nombre</Label>

@@ -60,13 +60,18 @@ const Footer = ({ className }: { className?: string }) => {
             <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Legal</h4>
             <ul className="space-y-2">
               <li>
-                <Link to="/terms" className="text-xs text-slate-400 hover:text-[#0e7490] transition-colors">
-                  Términos de Servicio
+                <Link to="/legal" className="text-xs text-slate-400 hover:text-[#0e7490] transition-colors">
+                  Aviso Legal
                 </Link>
               </li>
               <li>
                 <Link to="/privacy" className="text-xs text-slate-400 hover:text-[#0e7490] transition-colors">
                   Política de Privacidad
+                </Link>
+              </li>
+              <li>
+                <Link to="/cookies" className="text-xs text-slate-400 hover:text-[#0e7490] transition-colors">
+                  Política de Cookies
                 </Link>
               </li>
               <li>

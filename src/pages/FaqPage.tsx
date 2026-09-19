@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { motion } from "framer-motion";
 
 import { Search, ShieldQuestion, FileSignature, CreditCard, BookOpen, Mail, Linkedin, Github } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -97,7 +98,13 @@ const FaqPage = () => {
   }, [search]);
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] px-4 pt-14 pb-16">
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className="min-h-[calc(100vh-3.5rem)] px-4 pt-14 pb-16"
+    >
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center space-y-3 mb-10">
@@ -193,7 +200,7 @@ const FaqPage = () => {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

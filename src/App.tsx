@@ -16,6 +16,7 @@ import VerificationCenter from "./pages/VerificationCenter";
 import IdentityPanel from "./pages/IdentityPanel";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import CookiesPage from "./pages/CookiesPage";
 import FaqPage from "./pages/FaqPage";
 import NotFound from "./pages/NotFound";
 import Technology from "./pages/Technology";
@@ -42,7 +43,10 @@ const App = () => (
             <Route path="/" element={<AppShell><Index /></AppShell>} />
             <Route path="/architect" element={<AppShell><Architect /></AppShell>} />
             <Route path="/terms" element={<AppShell><TermsPage /></AppShell>} />
+            <Route path="/legal" element={<AppShell><TermsPage /></AppShell>} />
+            <Route path="/aviso-legal" element={<AppShell><TermsPage /></AppShell>} />
             <Route path="/privacy" element={<AppShell><PrivacyPage /></AppShell>} />
+            <Route path="/cookies" element={<AppShell><CookiesPage /></AppShell>} />
             <Route path="/faq" element={<AppShell><FaqPage /></AppShell>} />
             <Route path="/tecnologia" element={<AppShell><Technology /></AppShell>} />
             <Route path="/dashboard/plans" element={<AppShell><PlansPage /></AppShell>} />

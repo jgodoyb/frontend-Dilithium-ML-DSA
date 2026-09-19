@@ -11,6 +11,7 @@ import {
   Shield,
   Hexagon,
   KeyRound,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -323,6 +324,17 @@ const SignatureHub = () => {
     setProgress(0);
     setSignatureB64(null);
     setSignerId(null);
+    if (inputRef.current) inputRef.current.value = "";
+  }, []);
+
+  const removeFile = useCallback((e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setState("idle");
+    setFile(null);
+    setRawFile(null);
+    setProgress(0);
+    setSignatureB64(null);
+    if (inputRef.current) inputRef.current.value = "";
   }, []);
 
   const handleDownload = useCallback(() => {
@@ -536,7 +548,7 @@ const SignatureHub = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.3 }}
-                  className="flex flex-col items-center gap-5 text-center"
+                  className="flex flex-col items-center gap-4 text-center relative z-20"
                 >
                   <div className="w-14 h-14 rounded-full bg-[#0e7490]/20 border border-[#0e7490]/50 flex items-center justify-center shadow-[0_0_20px_rgba(14,116,144,0.4)]">
                     <FileText className="w-6 h-6 text-white" />
@@ -547,6 +559,17 @@ const SignatureHub = () => {
                     </p>
                     <p className="text-[11px] text-slate-500 font-mono tracking-widest">{file.size}</p>
                   </div>
+
+                  {/* Botón explícito dentro del dropzone para eliminar archivo */}
+                  <button
+                    type="button"
+                    onClick={removeFile}
+                    className="mt-1 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 hover:text-red-300 text-xs font-medium flex items-center gap-1.5 transition-all shadow-md hover:scale-105 active:scale-95"
+                    title="Eliminar archivo seleccionado"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar archivo</span>
+                  </button>
                 </motion.div>
               )}
 

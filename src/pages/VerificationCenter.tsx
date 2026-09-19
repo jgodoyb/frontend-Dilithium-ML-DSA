@@ -13,6 +13,7 @@ import {
   Hexagon,
   CheckCircle2,
   XCircle,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +59,7 @@ interface MiniDropzoneProps {
   icon: React.ReactNode;
   file: SelectedFile | null;
   onFile: (f: File) => void;
+  onRemove?: () => void;
   errorFlash: boolean;
 }
 
@@ -68,6 +70,7 @@ const MiniDropzone = ({
   icon,
   file,
   onFile,
+  onRemove,
   errorFlash,
 }: MiniDropzoneProps) => {
   const [drag, setDrag] = useState(false);
@@ -124,6 +127,21 @@ const MiniDropzone = ({
               {file.name}
             </p>
             <p className="text-[11px] text-slate-500 font-mono tracking-widest">{file.size}</p>
+            
+            {onRemove && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                className="mt-1 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 hover:text-red-300 text-xs font-medium flex items-center gap-1.5 transition-all shadow-md hover:scale-105 active:scale-95"
+                title="Eliminar archivo"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Quitar archivo</span>
+              </button>
+            )}
           </motion.div>
         ) : (
           <div className="flex flex-col items-center gap-3 text-center relative z-10">
@@ -147,42 +165,24 @@ const MiniDropzone = ({
 const resultConfig = {
   valid: {
     icon: CheckCircle2,
-    title: "Integridad Criptográfica Verificada",
-    desc: "El documento ha sido validado satisfactoriamente mediante algoritmos ML-DSA-65. Ninguna alteración detectada en la matriz.",
-    border: "border-emerald-500/30 shadow-[0_0_50px_rgba(16,185,129,0.15)]",
-    iconClass: "text-emerald-400",
-    bg: "bg-[#0a0a0a]",
-    animationProps: {
-      initial: { scale: 0.8, opacity: 0 },
-      animate: { scale: 1, opacity: 1 },
-      transition: { type: "spring", stiffness: 200, damping: 20 }
-    }
+    badgeText: "DOCUMENTO VÁLIDO",
+    badgeClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+    title: "Firma Criptográfica Auténtica",
+    statusText: "Integridad Verificada 100%",
   },
   invalid: {
     icon: XCircle,
-    title: "Alerta de Integridad Comprometida",
-    desc: "El documento ha sido adulterado posterior a su firma o la matriz de Lattice no coincide. Falsificación detectada.",
-    border: "border-red-500/40 shadow-[0_0_50px_rgba(239,68,68,0.2)]",
-    iconClass: "text-red-500",
-    bg: "bg-[#0a0a0a]",
-    animationProps: {
-      initial: { x: 0 },
-      animate: { x: [-15, 15, -10, 10, -5, 5, 0] },
-      transition: { duration: 0.4 }
-    }
+    badgeText: "ALTERACIÓN DETECTADA",
+    badgeClass: "text-red-400 bg-red-500/10 border-red-500/20",
+    title: "El Documento ha sido Modificado",
+    statusText: "Firma Inválida o Incompatible",
   },
   "not-found": {
     icon: UserX,
-    title: "Clave Pública No Identificada",
-    desc: "El registro de la firma pertenece a una identidad criptográfica que no existe en nuestro nodo institucional.",
-    border: "border-orange-500/30 shadow-[0_0_40px_rgba(249,115,22,0.1)]",
-    iconClass: "text-orange-400",
-    bg: "bg-[#0a0a0a]",
-    animationProps: {
-      initial: { opacity: 0, y: 10 },
-      animate: { opacity: 1, y: 0 },
-      transition: { duration: 0.4 }
-    }
+    badgeText: "IDENTIDAD NO REGISTRADA",
+    badgeClass: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+    title: "Firmante No Encontrado",
+    statusText: "Registro no vinculado",
   },
 } as const;
 
@@ -197,51 +197,68 @@ const ResultCard = ({
 }) => {
   const c = resultConfig[type];
   const Icon = c.icon;
+
   return (
     <motion.div
-      {...c.animationProps}
-      className="w-full max-w-xl mx-auto"
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className="w-full max-w-xl mx-auto text-left space-y-6 pt-2"
     >
-      <Card
-        className={`border ${c.border} ${c.bg} backdrop-blur-2xl rounded-2xl overflow-hidden text-white relative`}
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-50 pointer-events-none" />
-        <CardContent className="flex flex-col items-center gap-6 py-12 px-8 text-center relative z-10">
-          <motion.div 
-            initial={{ scale: 0 }} 
-            animate={{ scale: 1 }} 
-            transition={{ delay: 0.1, type: "spring" }}
-            className={`w-20 h-20 rounded-full border border-white/10 flex items-center justify-center shadow-lg bg-black/50`}
-          >
-            <Icon className={`w-10 h-10 ${c.iconClass}`} />
-          </motion.div>
-          
-          <div className="space-y-3">
-            <p className="text-xl md:text-2xl font-light tracking-wide text-white">{c.title}</p>
-            <p className="text-sm text-slate-400 font-light leading-relaxed max-w-sm mx-auto">
-              {c.desc}
-            </p>
+      {/* Top Header Label */}
+      <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-mono tracking-widest uppercase font-semibold ${c.badgeClass}`}>
+          <Icon className="w-3.5 h-3.5" />
+          <span>{c.badgeText}</span>
+        </div>
+        <span className="text-[11px] font-mono text-slate-500 uppercase tracking-widest">NIST FIPS 204</span>
+      </div>
+
+      {/* Main Title & Status */}
+      <div className="space-y-1">
+        <h2 className="text-2xl sm:text-3xl font-light text-white tracking-tight">
+          {c.title}
+        </h2>
+        <p className="text-xs text-slate-400 font-mono tracking-wider">
+          {c.statusText}
+        </p>
+      </div>
+
+      {/* Corporate Metadata Rows (Accenture Style minimal rows, no nested cards) */}
+      {type === "valid" && signerEmail && (
+        <div className="border-t border-b border-white/10 py-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-slate-500 block mb-1">
+                Firmante Autorizado
+              </span>
+              <span className="text-sm font-semibold text-white font-mono break-all">
+                {signerEmail}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-slate-500 block mb-1">
+                Algoritmo Criptográfico
+              </span>
+              <span className="text-xs text-cyan-400 font-mono">
+                ML-DSA-65 (Lattice)
+              </span>
+            </div>
           </div>
-          
-          {type === "valid" && signerEmail && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl py-5 px-6 w-full text-sm mt-4 shadow-inner"
-            >
-              <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-500 font-bold">Autorizado y Firmado Por:</span>
-              <br />
-              <span className="font-mono text-emerald-50 text-lg mt-1 block tracking-wider">{signerEmail}</span>
-            </motion.div>
-          )}
-          
-          <Button variant="ghost" onClick={onReset} className="gap-2 mt-6 text-slate-400 hover:text-white hover:bg-white/5 rounded-full px-6 text-[11px] uppercase tracking-[0.2em] font-extrabold h-12 transition-all">
-            <RotateCcw className="w-4 h-4" />
-            Ejecutar Nueva Auditoría
-          </Button>
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      {/* Clean Corporate Action Button */}
+      <div className="pt-2">
+        <Button
+          onClick={onReset}
+          className="w-full sm:w-auto bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 h-12 rounded-xl text-xs font-mono tracking-wider uppercase transition-all flex items-center justify-center gap-2 px-6"
+        >
+          <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+          <span>Auditar Otro Documento</span>
+        </Button>
+      </div>
     </motion.div>
   );
 };
@@ -275,8 +292,6 @@ const VerificationCenter = () => {
     },
     [toast],
   );
-
-
 
   /* ── verify action ── */
   const handleVerify = useCallback(async () => {
@@ -318,7 +333,6 @@ const VerificationCenter = () => {
 
       // Separar el PDF original matemático de los metadatos inyectados.
       const cleanPdfBytes = bytes.slice(0, markerIndex);
-      const cleanPdfBlob = new Blob([cleanPdfBytes], { type: "application/pdf" });
       
       const textDecoder = new TextDecoder();
       const jsonStrChunk = textDecoder.decode(bytes.slice(markerIndex));
@@ -519,12 +533,11 @@ const VerificationCenter = () => {
                   icon={<FileText className="w-5 h-5 text-primary" />}
                   file={docFile}
                   onFile={handleDoc}
+                  onRemove={() => setDocFile(null)}
                   errorFlash={docError}
                 />
               </div>
             </div>
-
-
 
             <div className="flex justify-center pt-4">
               <Button
@@ -555,7 +568,6 @@ const VerificationCenter = () => {
           )}
         </AnimatePresence>
       </AnimatePresence>
-
 
       </div>
     </div>

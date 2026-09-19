@@ -1,17 +1,25 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
+# robots.txt for https://www.qproofsystems.es/
+# Q-Proof Systems - Criptografía Post-Cuántica ML-DSA (NIST FIPS 204)
 
 User-agent: *
 Allow: /
+Allow: /tecnologia
+Allow: /architect
+Allow: /faq
+Allow: /terms
+Allow: /legal
+Allow: /aviso-legal
+Allow: /privacy
+Allow: /cookies
+Allow: /dashboard/plans
+Allow: /dashboard/verify
 
+# Rutas privadas, autenticación y paneles autenticados de usuario
+Disallow: /auth
+Disallow: /auth/
+Disallow: /auth/recovery
+Disallow: /dashboard/sign
+Disallow: /dashboard/identity
+
+# Mapa del sitio XML oficial
 Sitemap: https://www.qproofsystems.es/sitemap.xml
-
