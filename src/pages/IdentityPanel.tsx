@@ -292,7 +292,7 @@ const IdentityPanel = () => {
                 onClick={() => !uploading && fileInputRef.current?.click()}
               >
                 {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  <img src={profile.avatar_url} alt={`Fotografía de perfil del usuario ${profile.full_name || 'Q-Proof Systems'}`} className="w-full h-full object-cover" />
                 ) : (
                   nameInitial.toUpperCase()
                 )}
@@ -354,7 +354,7 @@ const IdentityPanel = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10" />
                   <img 
                     src="/identity-header.png" 
-                    alt="Digital Token"
+                    alt="Representación gráfica del token de identidad digital y nodo de cifrado post-cuántico"
                     className="w-full h-full object-cover opacity-60 mix-blend-screen grayscale hover:grayscale-0 transition-all duration-700"
                   />
                   <div className="absolute top-3 left-4 z-20">

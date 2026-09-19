@@ -322,7 +322,7 @@ const Architect = () => {
 
             {/* Profile Pic Overlay (High-end feel) */}
             <div className="absolute -bottom-10 -left-10 z-20 w-48 h-48 rounded-[2.5rem] overflow-hidden border-8 border-[#030303] bg-black shadow-2xl">
-               <img src={profileImg} alt="Jorge Godoy" className="w-full h-full object-cover transition-all duration-700" />
+               <img src={profileImg} alt="Jorge Godoy Beltrán - Lead Security Engineer y creador de Q-Proof Systems" className="w-full h-full object-cover transition-all duration-700" />
             </div>
 
             {/* Floating Technical Elements */}
@@ -501,7 +501,7 @@ const Architect = () => {
                   {selectedCert.description}
                 </p>
                 <div className="mt-6 rounded-xl overflow-hidden border border-white/10 relative w-full">
-                  <img src={selectedCert.image} alt={`Certificado ${selectedCert.title}`} className="w-full h-auto" />
+                  <img src={selectedCert.image} alt={`Certificación técnica acreditada: ${selectedCert.title}`} className="w-full h-auto" />
                 </div>
               </>
             )}
@@ -526,7 +526,7 @@ const Architect = () => {
                 </p>
                 {selectedEdu.certImage && (
                   <div className="mt-6 rounded-xl overflow-hidden border border-white/10 relative w-full">
-                    <img src={selectedEdu.certImage} alt={`Transcript ${selectedEdu.title}`} className="w-full h-auto" />
+                    <img src={selectedEdu.certImage} alt={`Historial académico universitario: ${selectedEdu.title}`} className="w-full h-auto" />
                   </div>
                 )}
               </>
