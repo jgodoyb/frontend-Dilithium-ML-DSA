@@ -15,6 +15,9 @@ const LatticeBackground = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    // Only run mouse particle effect on devices with mouse/fine pointer (desktop/laptop)
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");

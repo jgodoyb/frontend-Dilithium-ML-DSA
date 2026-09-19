@@ -140,21 +140,22 @@ const NivelesSeguridad = () => {
   return (
     <section id="niveles" className="relative pb-24 z-10 bg-transparent">
       <div className="max-w-5xl">
-        <div className="text-left mb-16 pl-6">
-          <p className="text-sm font-semibold tracking-[0.2em] uppercase mb-4 text-[#0e7490]">
+        <div className="text-left mb-12 sm:mb-16 pl-3 sm:pl-6">
+          <p className="text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase mb-3 sm:mb-4 text-[#0e7490]">
             FIPS 204 · Especificaciones
           </p>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-white">
             Niveles de Seguridad Oficiales
           </h2>
-          <p className="text-slate-400 max-w-3xl font-light text-lg">
+          <p className="text-slate-400 max-w-3xl font-light text-sm sm:text-lg leading-relaxed">
             Comparativa completa según el estándar NIST FIPS 204: parámetros internos,
             tamaños de clave y categoría de seguridad.
           </p>
         </div>
 
         {/* Comparative Table */}
-        <div className="bg-[#030303] border-y border-white/10 md:border md:shadow-2xl mb-12">
+        <div className="bg-[#030303] border-y border-white/10 md:border md:shadow-2xl mb-12 overflow-x-auto w-full">
+          <div className="min-w-[560px]">
             {/* Header */}
             <div className="grid grid-cols-4 text-xs font-bold uppercase tracking-[0.1em] border-b border-white/20 bg-[#0a0a0a]">
               <div className="p-4 md:p-6 text-slate-400">Parámetro</div>
@@ -178,16 +179,16 @@ const NivelesSeguridad = () => {
             {rows.map((row, ri) => (
               <div
                 key={ri}
-                className="grid grid-cols-4 border-b border-white/5 last:border-0 text-sm"
+                className="grid grid-cols-4 border-b border-white/5 last:border-0 text-xs sm:text-sm"
               >
-                <div className="p-4 flex items-center gap-2 text-slate-300 font-semibold">
-                  <row.icon className="w-4 h-4 text-slate-500 shrink-0" />
+                <div className="p-3 sm:p-4 flex items-center gap-2 text-slate-300 font-semibold">
+                  <row.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 shrink-0" />
                   <span>{row.label}</span>
                 </div>
                 {row.values.map((v, ci) => (
                   <div
                     key={ci}
-                    className="p-4 text-center font-mono text-sm transition-all duration-200 border-l border-white/5"
+                    className="p-3 sm:p-4 text-center font-mono text-xs sm:text-sm transition-all duration-200 border-l border-white/5"
                     style={{
                       color: hovered === ci ? "#0e7490" : "#94a3b8",
                       background: hovered === ci ? "rgba(14, 116, 144, 0.1)" : "transparent",
@@ -200,10 +201,11 @@ const NivelesSeguridad = () => {
                 ))}
               </div>
             ))}
+          </div>
         </div>
 
         {/* Glossary */}
-        <div className="px-6 md:px-0">
+        <div className="px-3 sm:px-6 md:px-0">
           <div className="border-b-2 border-white/10 pb-4 mb-6">
             <h3 className="text-white text-2xl font-bold">
               Glosario de Parámetros
