@@ -9,7 +9,7 @@
  */
 export async function calculateHashFromBytes(bytes: Uint8Array | ArrayBuffer): Promise<string> {
   // 1. Calculate SHA-256 using the browser's native API
-  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
 
   // 2. Convert to Hexadecimal representation (64 characters)
   const hashArray = Array.from(new Uint8Array(hashBuffer));
