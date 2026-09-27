@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { extractSignableBytes, injectSignatureHex, base64ToHex, bytesToHex } from "../lib/PDFSigner";
-import { prepareSignatureUpdate } from "../lib/PDFInjector";
+import { prepareVisualSignatureUpdate } from "../lib/PDFInjector";
+import { generateAppearanceStream } from "../lib/PDFAppearance";
 import { findLastXrefOffset, findLastEofPosition } from "../lib/PDFScanner";
 
 describe("PDFSigner - extractSignableBytes & injectSignatureHex", () => {
@@ -32,12 +33,18 @@ startxref
     const lastXref = findLastXrefOffset(originalBuffer);
     const lastEof = findLastEofPosition(originalBuffer);
 
-    const prepared = prepareSignatureUpdate(
+    const apStream = generateAppearanceStream(998, 200, 50, "Firmado por: Jorge Godoy");
+    const prepared = prepareVisualSignatureUpdate(
       originalBuffer,
       lastXref,
       lastEof,
+      3,
+      "",
+      apStream,
+      [50, 50, 250, 100],
+      "user-uuid",
       "Jorge Godoy",
-      { placeholderBytes: 1024 } // 2048 hex chars
+      { placeholderBytes: 1024, fieldName: "Signature_1" }
     );
 
     const signable = extractSignableBytes(prepared.preparedPdfBuffer, prepared.byteRange);
@@ -59,13 +66,18 @@ startxref
     const lastXref = findLastXrefOffset(originalBuffer);
     const lastEof = findLastEofPosition(originalBuffer);
 
-    const placeholderChars = 2048; // 1024 bytes
-    const prepared = prepareSignatureUpdate(
+    const apStream = generateAppearanceStream(998, 200, 50, "Firmado por: Jorge Godoy");
+    const prepared = prepareVisualSignatureUpdate(
       originalBuffer,
       lastXref,
       lastEof,
+      3,
+      "",
+      apStream,
+      [50, 50, 250, 100],
+      "user-uuid",
       "Jorge Godoy",
-      { placeholderBytes: 1024 }
+      { placeholderBytes: 1024, fieldName: "Signature_2" }
     );
 
     const fakeSignatureHex = "deadbeefcafebabe0123456789abcdef"; // 32 caracteres hex
@@ -132,19 +144,25 @@ startxref
     const lastEof = findLastEofPosition(originalBuffer);
 
     // 1. Preparar documento incremental con objeto /Sig y /ByteRange
-    const prepared = prepareSignatureUpdate(
+    const apStream = generateAppearanceStream(998, 200, 50, "Firmado por: Quantum Signer");
+    const prepared = prepareVisualSignatureUpdate(
       originalBuffer,
       lastXref,
       lastEof,
+      3,
+      "",
+      apStream,
+      [50, 50, 250, 100],
+      "quantum-uuid",
       "Quantum Signer",
-      { placeholderBytes: 8192 } // 16384 caracteres hex
+      { placeholderBytes: 8192, fieldName: "Signature_E2E" }
     );
 
     // 2. Extraer bytes firmables aislados
     const signableBytes = extractSignableBytes(prepared.preparedPdfBuffer, prepared.byteRange);
 
     // 3. Hasheo criptográfico SHA-256
-    const hashBuffer = await crypto.subtle.digest("SHA-256", signableBytes);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", signableBytes as BufferSource);
     const hashHex = bytesToHex(new Uint8Array(hashBuffer));
     expect(hashHex).toHaveLength(64);
 

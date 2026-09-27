@@ -61,7 +61,7 @@ function formatBytes(bytes: number): string {
  * Normaliza un buffer PDF utilizando pdf-lib para garantizar una estructura limpia
  * con tablas XRef de texto plano estándar (desactivando object streams / xref streams comprimidos de PDF 1.5+).
  */
-export async function normalizePdfBuffer(buffer: ArrayBuffer): Promise<ArrayBuffer> {
+async function normalizePdfBuffer(buffer: ArrayBuffer): Promise<ArrayBuffer> {
   const doc = await PDFDocument.load(buffer, { ignoreEncryption: true });
   const savedBytes = await doc.save({ useObjectStreams: false });
   return (savedBytes.buffer as ArrayBuffer).slice(savedBytes.byteOffset, savedBytes.byteOffset + savedBytes.byteLength);
@@ -180,13 +180,13 @@ const SignatureHub = () => {
       const existingSignatureCount = byteRangeMatches ? byteRangeMatches.length : 0;
 
       // =========================================================================
-      // MOTOR DE FIRMA VISUAL INCREMENTAL ISO 32000 PURO
+      // MOTOR DE FIRMA VISUAL INCREMENTAL ISO 32000 CON HOJA DE FIRMAS DINÁMICA
       // =========================================================================
 
       let workingBuffer: ArrayBuffer = rawBuffer;
       let lastXrefOffset: number;
       let lastEofPos: number;
-      let lastPageInfo: { pageObjNumber: number; pageDict: string; existingAnnots: string };
+      let lastPageInfo: ReturnType<typeof findLastPageObject>;
       let xrefMap: Map<number, number>;
 
       try {
@@ -213,30 +213,53 @@ const SignatureHub = () => {
         }
       }
 
-      // 5. Apilamiento Dinámico en el Eje Y para Multifirmas
-      const annotsCount = lastPageInfo.existingAnnots
-        ? lastPageInfo.existingAnnots.trim().split(/\s+/).filter(Boolean).length / 3
-        : 0;
-      const totalPrevSigs = Math.max(existingSignatureCount, Math.floor(annotsCount));
+      // 5. Detección o Creación de Hoja de Firmas y Apilamiento Vertical Descendente
+      const isSignatureSheet = lastPageInfo.isSignatureSheet;
+      const createNewSignatureSheet = !isSignatureSheet;
 
-      const margin = 30;
-      const initialBottomY = 25;
-      const stampWidth = 360;
-      const stampHeight = 55;
-      const gap = 10;
-      const dynamicBottomY = initialBottomY + totalPrevSigs * (stampHeight + gap);
-      const widgetRect = [margin, dynamicBottomY, margin + stampWidth, dynamicBottomY + stampHeight];
+      // Si ya es una Hoja de Firmas, apilamos hacia abajo según las firmas existentes en ella
+      const prevSigsOnSheet = createNewSignatureSheet ? 0 : lastPageInfo.signatureCountOnSheet;
+
+      const mediaBox = lastPageInfo.pageMediaBox ?? [0, 0, 595.28, 841.89];
+      const pageWidth = mediaBox[2] - mediaBox[0];
+      const pageHeight = mediaBox[3] - mediaBox[1];
+
+      // Geometría del sello institucional en la Hoja de Firmas
+      const stampWidth = Math.min(495, pageWidth - 80);
+      const stampHeight = 65;
+      const gap = 12;
+      const leftMargin = Math.round((pageWidth - stampWidth) / 2);
+
+      // Apilamiento vertical hacia abajo: la cabecera ocupa los primeros ~88pt desde arriba
+      const topStartY = pageHeight - 105;
+      const currentTopY = topStartY - prevSigsOnSheet * (stampHeight + gap);
+      const currentBottomY = currentTopY - stampHeight;
+
+      const widgetRect = [
+        leftMargin,
+        Math.max(50, Math.round(currentBottomY)),
+        leftMargin + stampWidth,
+        Math.max(50 + stampHeight, Math.round(currentTopY)),
+      ];
 
       // 6. Cálculo dinámico de IDs de objeto para blindaje contra colisiones ISO 32000
       const maxObjNumber = xrefMap.size > 0 ? Math.max(...xrefMap.keys()) : 900;
-      const widgetObjNumber = maxObjNumber + 1;
-      const apObjNumber = maxObjNumber + 2;
-      const sigObjectNumber = maxObjNumber + 3;
+      let nextId = maxObjNumber + 1;
+      let sheetContentObjNumber: number | undefined;
+      let newPageObjNumber: number | undefined;
+
+      if (createNewSignatureSheet) {
+        sheetContentObjNumber = nextId++;
+        newPageObjNumber = nextId++;
+      }
+      const widgetObjNumber = nextId++;
+      const apObjNumber = nextId++;
+      const sigObjectNumber = nextId++;
 
       // 7. Generación del Appearance Stream Form XObject estructurado
       const now = new Date();
       const dateFormatted = now.toISOString().replace("T", " ").substring(0, 19) + " UTC";
-      const stampText = `Firmado por: ${fullName}\nFecha: ${dateFormatted}\nAlgoritmo: ML-DSA-65 (NIST FIPS-204)`;
+      const stampText = `Firmado por: ${fullName}\nFecha: ${dateFormatted}\nAlgoritmo: ML-DSA-65 (NIST FIPS-204)\nID de Certificación: ${session.user.id}`;
       const apStreamText = generateAppearanceStream(
         apObjNumber,
         stampWidth,
@@ -245,18 +268,29 @@ const SignatureHub = () => {
       );
 
       // 8. Preparación incremental multi-objeto ISO 32000 sobre workingBuffer
+      const uniqueFieldName = `Signature_${Date.now()}`;
+
       const prepared = prepareVisualSignatureUpdate(
         workingBuffer,
         lastXrefOffset,
         lastEofPos,
-        lastPageInfo.pageObjNumber,
-        lastPageInfo.existingAnnots,
+        createNewSignatureSheet ? (newPageObjNumber as number) : lastPageInfo.pageObjNumber,
+        createNewSignatureSheet ? "" : lastPageInfo.existingAnnots,
         apStreamText,
         widgetRect,
         session.user.id,
         fullName,
         {
-          pageDict: lastPageInfo.pageDict,
+          fieldName: uniqueFieldName,
+          pageDict: createNewSignatureSheet ? undefined : lastPageInfo.pageDict,
+          createNewSignatureSheet,
+          pagesRootObjNumber: lastPageInfo.pagesRootObjNum,
+          pagesRootDict: lastPageInfo.pagesRootDict,
+          pagesCount: lastPageInfo.pagesCount,
+          kids: lastPageInfo.kids,
+          newPageObjNumber,
+          sheetContentObjNumber,
+          mediaBox,
           widgetObjNumber,
           apObjNumber,
           sigObjectNumber,

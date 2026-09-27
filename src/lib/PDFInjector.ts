@@ -13,18 +13,19 @@
  */
 
 import { extractObject, parseXrefTable } from "./PDFParser";
+import { generateSignatureSheetDrawingStream } from "./PDFAppearance";
 
 export interface PrepareVisualSignatureOptions {
   /**
-   * Número de objeto indirecto asignado a la anotación Widget (por defecto: 997).
+   * Número de objeto indirecto asignado a la anotación Widget (por defecto: calculado dinámicamente).
    */
   widgetObjNumber?: number;
   /**
-   * Número de objeto indirecto asignado al Form XObject de apariencia (por defecto: 998).
+   * Número de objeto indirecto asignado al Form XObject de apariencia (por defecto: calculado dinámicamente).
    */
   apObjNumber?: number;
   /**
-   * Número de objeto indirecto asignado al diccionario /Sig (por defecto: 999).
+   * Número de objeto indirecto asignado al diccionario /Sig (por defecto: calculado dinámicamente).
    */
   sigObjectNumber?: number;
   /**
@@ -51,6 +52,40 @@ export interface PrepareVisualSignatureOptions {
    * Diccionario de la página original si ya fue previamente extraído (opcional).
    */
   pageDict?: string;
+
+  // --- OPCIONES PARA HOJA DE FIRMAS (SIGNATURE SHEET) ---
+  /**
+   * Indica si se debe crear una nueva Hoja de Firmas en lugar de firmar sobre una página existente.
+   */
+  createNewSignatureSheet?: boolean;
+  /**
+   * Número del objeto raíz de páginas (/Pages). Necesario si createNewSignatureSheet es true.
+   */
+  pagesRootObjNumber?: number;
+  /**
+   * Diccionario del objeto raíz de páginas original si ya fue extraído.
+   */
+  pagesRootDict?: string;
+  /**
+   * Conteo actual de páginas en el documento (/Count).
+   */
+  pagesCount?: number;
+  /**
+   * Array con los números de objeto de los hijos (/Kids) del objeto /Pages raíz.
+   */
+  kids?: number[];
+  /**
+   * Número de objeto indirecto asignado a la nueva página de anexo (si se crea).
+   */
+  newPageObjNumber?: number;
+  /**
+   * Número de objeto indirecto asignado al stream de contenido de la nueva página (si se crea).
+   */
+  sheetContentObjNumber?: number;
+  /**
+   * Dimensiones [llx, lly, urx, ury] del MediaBox para la nueva página de anexo (por defecto: [0, 0, 595.28, 841.89]).
+   */
+  mediaBox?: [number, number, number, number];
 }
 
 export interface PreparedVisualSignatureDocument {
@@ -84,13 +119,21 @@ export interface PreparedVisualSignatureDocument {
    */
   apObjNumber: number;
   /**
-   * Número del objeto indirecto de la página modificada.
+   * Número del objeto indirecto de la página a la que pertenece la firma.
    */
   pageObjNumber: number;
   /**
    * Offset donde comienza la nueva tabla de referencias cruzadas (XRef delta).
    */
   newXrefOffset: number;
+  /**
+   * Indica si se creó una nueva Hoja de Firmas en esta actualización.
+   */
+  isNewSignatureSheetCreated?: boolean;
+  /**
+   * Número del objeto raíz de páginas actualizado (/Pages) si se creó una nueva hoja.
+   */
+  pagesRootObjNumber?: number;
 }
 
 /**
@@ -159,7 +202,7 @@ function buildDeltaXrefTable(entries: Array<{ objNum: number; offset: number }>)
     xref += `${sub.startObj} ${sub.entries.length}\r\n`;
     for (const item of sub.entries) {
       const paddedOffset = String(item.offset).padStart(10, "0");
-      xref += `${paddedOffset} 00000 n \r\n`;
+      xref += `${paddedOffset} 00000 n\r\n`;
     }
   }
 
@@ -173,16 +216,65 @@ function buildDeltaXrefTable(entries: Array<{ objNum: number; offset: number }>)
 function buildUpdatedPageObject(
   originalPageText: string,
   pageObjNumber: number,
-  existingAnnots: string,
+  _externalExistingAnnots: string,
   widgetObjNumber: number
 ): string {
-  // Extraer el interior del diccionario << ... >>
-  const dictMatch = /<<([\s\S]*?)>>/.exec(originalPageText);
-  let dictBody = dictMatch ? dictMatch[1] : originalPageText;
+  // Expresión regular segura para capturar el array de Annots
+  const annotsRegex = /\/Annots\s*\[([\s\S]*?)\]/i;
+  const match = annotsRegex.exec(originalPageText);
 
-  // Remover cualquier entrada previa de /Annots (directa o indirecta)
-  dictBody = dictBody.replace(/\/Annots\s*\[[\s\S]*?\]/g, "");
-  dictBody = dictBody.replace(/\/Annots\s+\d+\s+\d+\s+R/g, "");
+  const newAnnotRef = `${widgetObjNumber} 0 R`;
+  let updatedText = originalPageText;
+
+  if (match) {
+    // Extracción y limpieza quirúrgica solo del interior del array
+    const oldInner = match[1].replace(/[\[\]]/g, "").trim().replace(/\s+/g, " ");
+    const merged = oldInner.length > 0 ? `${oldInner} ${newAnnotRef}` : newAnnotRef;
+    
+    // Reemplazo exacto que no altera el resto del diccionario (evita trigger de Adobe MDP)
+    updatedText = originalPageText.replace(annotsRegex, `/Annots [ ${merged} ]`);
+  } else {
+    // Si no existe, se inyecta de forma segura antes del cierre principal
+    const insertPos = originalPageText.lastIndexOf(">>");
+    if (insertPos !== -1) {
+      const before = originalPageText.substring(0, insertPos);
+      const after = originalPageText.substring(insertPos);
+      updatedText = `${before}  /Annots [ ${newAnnotRef} ]\n${after}`;
+    }
+  }
+
+  // Blindaje de cabeceras de objeto PDF
+  if (!/^\s*\d+\s+\d+\s+obj/i.test(updatedText)) {
+    updatedText = `${pageObjNumber} 0 obj\n` + updatedText;
+  }
+  if (!/endobj\s*$/i.test(updatedText)) {
+    updatedText = updatedText.trimEnd() + "\nendobj\n";
+  }
+
+  return updatedText;
+}
+
+/**
+ * Reescribe el objeto raíz del árbol de páginas (/Type /Pages) en una actualización incremental,
+ * añadiendo el nuevo número de página al array /Kids e incrementando /Count en una unidad.
+ */
+function buildUpdatedPagesRootObject(
+  originalPagesText: string,
+  pagesObjNumber: number,
+  newPageObjNumber: number,
+  existingKids: number[] = [],
+  oldCount = 1
+): string {
+  const startIdx = originalPagesText.indexOf("<<");
+  const endIdx = originalPagesText.lastIndexOf(">>");
+  let dictBody =
+    startIdx !== -1 && endIdx > startIdx
+      ? originalPagesText.substring(startIdx + 2, endIdx)
+      : originalPagesText;
+
+  // Remover /Kids y /Count previos
+  dictBody = dictBody.replace(/\/Kids\s*\[[\s\S]*?\]/g, "");
+  dictBody = dictBody.replace(/\/Count\s+\d+/g, "");
 
   const lines = dictBody
     .split(/\r\n|\n|\r/)
@@ -190,31 +282,110 @@ function buildUpdatedPageObject(
     .filter((l) => l.length > 0)
     .map((l) => `  ${l}`);
 
-  const newAnnotRef = `${widgetObjNumber} 0 R`;
-  const mergedAnnots = existingAnnots && existingAnnots.trim().length > 0
-    ? `${existingAnnots.trim()} ${newAnnotRef}`
-    : newAnnotRef;
+  // Si no se pasaron kids, intentar parsear los antiguos
+  let kidsList = existingKids;
+  if (!kidsList || kidsList.length === 0) {
+    const oldKidsMatch = /\/Kids\s*\[([\s\S]*?)\]/i.exec(originalPagesText);
+    if (oldKidsMatch) {
+      kidsList = [...oldKidsMatch[1].matchAll(/(\d+)\s+\d+\s+R/g)].map((m) => parseInt(m[1], 10));
+    }
+  }
 
-  lines.push(`  /Annots [ ${mergedAnnots} ]`);
+  const updatedKids = [...kidsList, newPageObjNumber];
+  const kidsStr = updatedKids.map((k) => `${k} 0 R`).join(" ");
 
-  return `${pageObjNumber} 0 obj\n<<\n${lines.join("\n")}\n>>\nendobj\n`;
+  let calculatedCount = oldCount;
+  if (calculatedCount <= 0) {
+    const oldCountMatch = /\/Count\s+(\d+)/.exec(originalPagesText);
+    calculatedCount = oldCountMatch ? parseInt(oldCountMatch[1], 10) : kidsList.length;
+  }
+  const newCount = Math.max(kidsList.length + 1, calculatedCount + 1);
+
+  if (!lines.some((l) => /\/Type\s*\/Pages\b/.test(l))) {
+    lines.unshift("  /Type /Pages");
+  }
+
+  lines.push(`  /Kids [ ${kidsStr} ]`);
+  lines.push(`  /Count ${newCount}`);
+
+  return `${pagesObjNumber} 0 obj\n<<\n${lines.join("\n")}\n>>\nendobj\n`;
+}
+
+/**
+ * Construye el objeto indirecto de una nueva Hoja de Firmas (/Type /Page) según ISO 32000.
+ */
+function buildNewSignatureSheetPageObject(
+  pageObjNumber: number,
+  pagesRootObjNumber: number,
+  sheetContentObjNumber: number,
+  widgetObjNumber: number,
+  mediaBox: [number, number, number, number] = [0, 0, 595.28, 841.89]
+): string {
+  const boxStr = `${mediaBox[0]} ${mediaBox[1]} ${mediaBox[2]} ${mediaBox[3]}`;
+  return `${pageObjNumber} 0 obj
+<<
+  /Type /Page
+  /Parent ${pagesRootObjNumber} 0 R
+  /MediaBox [${boxStr}]
+  /Resources <<
+    /Font <<
+      /F1 <<
+        /Type /Font
+        /Subtype /Type1
+        /BaseFont /Helvetica
+        /Encoding /WinAnsiEncoding
+      >>
+      /F1B <<
+        /Type /Font
+        /Subtype /Type1
+        /BaseFont /Helvetica-Bold
+        /Encoding /WinAnsiEncoding
+      >>
+    >>
+    /ProcSet [/PDF /Text]
+  >>
+  /Contents ${sheetContentObjNumber} 0 R
+  /Annots [ ${widgetObjNumber} 0 R ]
+  /QProofSheet true
+  /PieceInfo <<
+    /QProof <<
+      /Private (SignatureSheet)
+    >>
+  >>
+>>
+endobj
+`;
+}
+
+/**
+ * Construye el objeto indirecto de contenido stream para la cabecera y estructura de la Hoja de Firmas.
+ */
+function buildSignatureSheetContentStreamObject(
+  sheetContentObjNumber: number,
+  pageWidth = 595.28,
+  pageHeight = 841.89
+): string {
+  const streamContent = generateSignatureSheetDrawingStream(pageWidth, pageHeight);
+  const encoder = new TextEncoder();
+  const streamBytes = encoder.encode(streamContent);
+  return `${sheetContentObjNumber} 0 obj\n<<\n  /Length ${streamBytes.length}\n>>\nstream\n${streamContent}\nendstream\nendobj\n`;
 }
 
 /**
  * Prepara una Actualización Incremental Visual completa en un documento PDF (ISO 32000).
- * Inyecta atómicamente la página modificada, la anotación Widget, el Form XObject de apariencia
- * y el diccionario de firma digital /Sig con sus rangos de byte precalculados.
+ * Soporta tanto la firma en páginas existentes como la creación atómica de una nueva Hoja de Firmas
+ * (Anexo de Firmas) al final del documento con actualización incremental de /Pages y /Kids.
  * 
  * @param buffer - ArrayBuffer del PDF original.
  * @param lastXrefOffset - Byte offset de la tabla XRef previa.
  * @param lastEofPos - Posición en bytes del último marcador %%EOF.
- * @param pageObjNumber - Número de objeto de la página a la que se añade la firma.
+ * @param pageObjNumber - Número de objeto de la página a la que se añade la firma (o número de la nueva página).
  * @param existingAnnots - Cadena con referencias de anotaciones previas en la página (ej. "15 0 R 16 0 R" o "").
  * @param appearanceStreamText - Código completo del Form XObject generado por PDFAppearance.
  * @param widgetRect - Coordenadas [llx, lly, urx, ury] del sello en la página.
  * @param signerId - Identificador único / UUID del firmante para /ContactInfo.
  * @param signerName - Nombre legible del firmante para /Name.
- * @param options - Opciones de configuración adicionales (números de objetos, placeholder, etc.).
+ * @param options - Opciones de configuración adicionales (números de objetos, hoja de firmas, etc.).
  * @returns Objeto con el nuevo documento preparado, offsets exactos y rangos de byte.
  */
 export function prepareVisualSignatureUpdate(
@@ -236,23 +407,41 @@ export function prepareVisualSignatureUpdate(
     throw new TypeError("PDFInjector: widgetRect debe ser un array de 4 números [llx, lly, urx, ury].");
   }
 
+  const createNewSignatureSheet = options.createNewSignatureSheet ?? false;
+
   let widgetObjNumber = options.widgetObjNumber;
   let apObjNumber = options.apObjNumber;
   let sigObjectNumber = options.sigObjectNumber;
+  let newPageObjNumber = options.newPageObjNumber;
+  let sheetContentObjNumber = options.sheetContentObjNumber;
+  let pagesRootObjNumber = options.pagesRootObjNumber ?? 2;
 
-  if (widgetObjNumber === undefined || apObjNumber === undefined || sigObjectNumber === undefined) {
-    try {
-      const xrefMap = parseXrefTable(buffer, lastXrefOffset);
-      const maxInDoc = xrefMap.size > 0 ? Math.max(...xrefMap.keys()) : 900;
-      widgetObjNumber = widgetObjNumber ?? maxInDoc + 1;
-      apObjNumber = apObjNumber ?? maxInDoc + 2;
-      sigObjectNumber = sigObjectNumber ?? maxInDoc + 3;
-    } catch {
-      widgetObjNumber = widgetObjNumber ?? 997;
-      apObjNumber = apObjNumber ?? 998;
-      sigObjectNumber = sigObjectNumber ?? 999;
+  // Resolución y asignación dinámica de IDs para blindaje de colisiones
+  try {
+    const xrefMap = parseXrefTable(buffer, lastXrefOffset);
+    const maxInDoc = xrefMap.size > 0 ? Math.max(...xrefMap.keys()) : 900;
+    let nextId = maxInDoc + 1;
+
+    if (createNewSignatureSheet) {
+      sheetContentObjNumber = sheetContentObjNumber ?? nextId++;
+      newPageObjNumber = newPageObjNumber ?? nextId++;
     }
+    widgetObjNumber = widgetObjNumber ?? nextId++;
+    apObjNumber = apObjNumber ?? nextId++;
+    sigObjectNumber = sigObjectNumber ?? nextId++;
+  } catch {
+    if (createNewSignatureSheet) {
+      sheetContentObjNumber = sheetContentObjNumber ?? 995;
+      newPageObjNumber = newPageObjNumber ?? 996;
+    }
+    widgetObjNumber = widgetObjNumber ?? 997;
+    apObjNumber = apObjNumber ?? 998;
+    sigObjectNumber = sigObjectNumber ?? 999;
   }
+
+  const targetPageObjNumber = createNewSignatureSheet
+    ? (newPageObjNumber as number)
+    : pageObjNumber;
 
   const placeholderBytes = options.placeholderBytes ?? 8192;
   const hexLength = placeholderBytes * 2; // 8192 bytes = 16384 caracteres hex
@@ -272,22 +461,66 @@ export function prepareVisualSignatureUpdate(
   const needsNewline = lastChar !== 0x0a && lastChar !== 0x0d;
   const baseOffset = baseSlice.length + (needsNewline ? 1 : 0);
 
-  // 2. Modificación del Objeto de Página
-  const originalPageText = options.pageDict
-    ? `${pageObjNumber} 0 obj\n${options.pageDict}\nendobj`
-    : extractObject(buffer, 0); // Si no se pasa pageDict, usa fallback o dict mínimo
+  // 2. Preparar objetos dependientes del modo (Crear nueva hoja vs Modificar página existente)
+  let pagesRootBytes: Uint8Array | null = null;
+  let sheetContentBytes: Uint8Array | null = null;
+  let pageObjBytes: Uint8Array;
 
-  const updatedPageObjText = buildUpdatedPageObject(
-    options.pageDict ? `${pageObjNumber} 0 obj\n${options.pageDict}\nendobj` : originalPageText,
-    pageObjNumber,
-    existingAnnots,
-    widgetObjNumber
-  );
-  const pageObjBytes = encoder.encode(updatedPageObjText);
+  const mediaBox = options.mediaBox ?? [0, 0, 595.28, 841.89];
+  const pageWidth = mediaBox[2] - mediaBox[0];
+  const pageHeight = mediaBox[3] - mediaBox[1];
+
+  if (createNewSignatureSheet) {
+    // Modo A: Nueva Hoja de Firmas
+    // a) Actualización del objeto raíz /Pages
+    const originalPagesRootText = options.pagesRootDict
+      ? `${pagesRootObjNumber} 0 obj\n${options.pagesRootDict}\nendobj`
+      : extractObject(buffer, 0);
+
+    const updatedPagesRootText = buildUpdatedPagesRootObject(
+      originalPagesRootText,
+      pagesRootObjNumber,
+      targetPageObjNumber,
+      options.kids ?? [],
+      options.pagesCount ?? 1
+    );
+    pagesRootBytes = encoder.encode(updatedPagesRootText);
+
+    // b) Stream de Contenido de la Hoja de Firmas
+    const sheetContentText = buildSignatureSheetContentStreamObject(
+      sheetContentObjNumber as number,
+      pageWidth,
+      pageHeight
+    );
+    sheetContentBytes = encoder.encode(sheetContentText);
+
+    // c) Objeto de la Nueva Página (/Type /Page)
+    const newPageObjText = buildNewSignatureSheetPageObject(
+      targetPageObjNumber,
+      pagesRootObjNumber,
+      sheetContentObjNumber as number,
+      widgetObjNumber as number,
+      mediaBox
+    );
+    pageObjBytes = encoder.encode(newPageObjText);
+  } else {
+    // Modo B: Reutilizar / Modificar página existente
+    const originalPageText = options.pageDict
+      ? `${pageObjNumber} 0 obj\n${options.pageDict}\nendobj`
+      : extractObject(buffer, 0);
+
+    const updatedPageObjText = buildUpdatedPageObject(
+      originalPageText,
+      pageObjNumber,
+      existingAnnots,
+      widgetObjNumber as number
+    );
+    pageObjBytes = encoder.encode(updatedPageObjText);
+  }
 
   // 3. Objeto Widget Annotation (/Type /Annot /Subtype /Widget)
   const [x1, y1, x2, y2] = widgetRect;
-  const widgetObjText = `${widgetObjNumber} 0 obj\n<<\n  /Type /Annot\n  /Subtype /Widget\n  /FT /Sig\n  /V ${sigObjectNumber} 0 R\n  /T (${safeFieldName})\n  /Rect [${x1} ${y1} ${x2} ${y2}]\n  /F 132\n  /P ${pageObjNumber} 0 R\n  /AP <<\n    /N ${apObjNumber} 0 R\n  >>\n>>\nendobj\n`;
+  const widgetObjText = `${widgetObjNumber} 0 obj\n<<\n  /Type /Annot\n  /Subtype /Widget\n  /FT /Sig\n  /V ${sigObjectNumber} 0 R\n  /T (${safeFieldName})\n  /Rect [${x1} ${y1} ${x2} ${y2}]\n  /F 132\n  /P ${targetPageObjNumber} 0 R\n  /AP <<\n    /N ${apObjNumber} 0 R\n  >>\n>>\nendobj\n`;
   const widgetObjBytes = encoder.encode(widgetObjText);
 
   // 4. Objeto Form XObject de Apariencia
@@ -317,11 +550,43 @@ export function prepareVisualSignatureUpdate(
   const textBeforeContents = sigObjHeader + optionalFields + byteRangeKey + byteRangePlaceholder + contentsKeyAndOpen;
   const textBeforeContentsBytes = encoder.encode(textBeforeContents);
 
-  // 6. Cálculo de Offsets para cada uno de los 4 objetos
-  const pageObjOffset = baseOffset;
-  const widgetObjOffset = pageObjOffset + pageObjBytes.length;
-  const apObjOffset = widgetObjOffset + widgetObjBytes.length;
-  const sigObjOffset = apObjOffset + apObjBytes.length;
+  // 6. Cálculo secuencial de Offsets para cada uno de los objetos del delta
+  let currentOffset = baseOffset;
+  const xrefEntries: Array<{ objNum: number; offset: number }> = [];
+
+  let pagesRootOffset = 0;
+  let sheetContentOffset = 0;
+
+  if (createNewSignatureSheet && pagesRootBytes && sheetContentBytes) {
+    // 1. Objeto /Pages actualizado
+    pagesRootOffset = currentOffset;
+    xrefEntries.push({ objNum: pagesRootObjNumber, offset: pagesRootOffset });
+    currentOffset += pagesRootBytes.length;
+
+    // 2. Stream de Contenido de la Hoja
+    sheetContentOffset = currentOffset;
+    xrefEntries.push({ objNum: sheetContentObjNumber as number, offset: sheetContentOffset });
+    currentOffset += sheetContentBytes.length;
+  }
+
+  // 3. Objeto de Página (nueva o modificada)
+  const pageObjOffset = currentOffset;
+  xrefEntries.push({ objNum: targetPageObjNumber, offset: pageObjOffset });
+  currentOffset += pageObjBytes.length;
+
+  // 4. Objeto Widget Annotation
+  const widgetObjOffset = currentOffset;
+  xrefEntries.push({ objNum: widgetObjNumber as number, offset: widgetObjOffset });
+  currentOffset += widgetObjBytes.length;
+
+  // 5. Objeto Form XObject de Apariencia
+  const apObjOffset = currentOffset;
+  xrefEntries.push({ objNum: apObjNumber as number, offset: apObjOffset });
+  currentOffset += apObjBytes.length;
+
+  // 6. Objeto de Firma (/Type /Sig)
+  const sigObjOffset = currentOffset;
+  xrefEntries.push({ objNum: sigObjectNumber as number, offset: sigObjOffset });
 
   // Offset 1: Posición exacta del carácter '<' de /Contents
   const offset1 = sigObjOffset + textBeforeContentsBytes.length - 1;
@@ -338,35 +603,25 @@ export function prepareVisualSignatureUpdate(
   // La nueva tabla XRef delta comienza inmediatamente tras el cierre de /Sig
   const newXrefOffset = offset2 + restOfSigObjBytes.length;
 
-  // 7. Construcción de la tabla XRef delta para los 4 objetos
-  const xrefEntries = [
-    { objNum: pageObjNumber, offset: pageObjOffset },
-    { objNum: widgetObjNumber, offset: widgetObjOffset },
-    { objNum: apObjNumber, offset: apObjOffset },
-    { objNum: sigObjectNumber, offset: sigObjOffset },
-  ];
-
+  // 7. Construcción de la tabla XRef delta
   const xrefTable = buildDeltaXrefTable(xrefEntries);
   const xrefTableBytes = encoder.encode(xrefTable);
 
   // 8. Extracción del Tráiler Original y Construcción del Nuevo Tráiler (ISO 32000)
-  const trailerScanArea = decodeLatin1(
-    rawBytes,
-    Math.max(0, lastXrefOffset - 512),
-    Math.min(rawBytes.length, lastXrefOffset + 8192)
-  );
+  // Escaneo global ultra-rápido para garantizar la captura del Root e ID
+  const fullFileStr = decodeLatin1(rawBytes, 0, rawBytes.length);
 
   let rootRef = "";
   let idArray = "";
 
-  const rootMatch = /\/Root\s+\d+\s+\d+\s+R/i.exec(trailerScanArea);
-  if (rootMatch) {
-    rootRef = rootMatch[0].trim();
+  const rootMatches = [...fullFileStr.matchAll(/\/Root\s+\d+\s+\d+\s+R/gi)];
+  if (rootMatches.length > 0) {
+    rootRef = rootMatches[rootMatches.length - 1][0].trim();
   }
 
-  const idMatch = /\/ID\s*\[[\s\S]*?\]/i.exec(trailerScanArea);
-  if (idMatch) {
-    idArray = idMatch[0].trim().replace(/\s+/g, " ");
+  const idMatches = [...fullFileStr.matchAll(/\/ID\s*\[[\s\S]*?\]/gi)];
+  if (idMatches.length > 0) {
+    idArray = idMatches[idMatches.length - 1][0].trim().replace(/\s+/g, " ");
   }
 
   const maxObjNum = Math.max(...xrefEntries.map((e) => e.objNum));
@@ -404,36 +659,47 @@ export function prepareVisualSignatureUpdate(
     finalBuffer[writePtr++] = 0x0a;
   }
 
-  // b) Objeto de Página Modificado
+  // b) Objetos adicionales si se creó una nueva Hoja de Firmas
+  if (createNewSignatureSheet && pagesRootBytes && sheetContentBytes) {
+    // Objeto /Pages actualizado
+    finalBuffer.set(pagesRootBytes, writePtr);
+    writePtr += pagesRootBytes.length;
+
+    // Objeto /Contents de la hoja
+    finalBuffer.set(sheetContentBytes, writePtr);
+    writePtr += sheetContentBytes.length;
+  }
+
+  // c) Objeto de Página (nueva o modificada)
   finalBuffer.set(pageObjBytes, writePtr);
   writePtr += pageObjBytes.length;
 
-  // c) Objeto Widget Annotation
+  // d) Objeto Widget Annotation
   finalBuffer.set(widgetObjBytes, writePtr);
   writePtr += widgetObjBytes.length;
 
-  // d) Objeto Form XObject de Apariencia
+  // e) Objeto Form XObject de Apariencia
   finalBuffer.set(apObjBytes, writePtr);
   writePtr += apObjBytes.length;
 
-  // e) Cabecera de /Sig y ByteRange
+  // f) Cabecera de /Sig y ByteRange
   finalBuffer.set(finalPreContentsBytes, writePtr);
   writePtr += finalPreContentsBytes.length;
 
-  // f) Relleno del placeholder de /Contents con ceros ASCII ('0' = 0x30)
+  // g) Relleno del placeholder de /Contents con ceros ASCII ('0' = 0x30)
   const contentsStartOffset = writePtr;
   finalBuffer.fill(0x30, writePtr, writePtr + hexLength);
   writePtr += hexLength;
 
-  // g) Cierre '>' y footer del objeto /Sig
+  // h) Cierre '>' y footer del objeto /Sig
   finalBuffer.set(sigFooterBytes, writePtr);
   writePtr += sigFooterBytes.length;
 
-  // h) Tabla XRef delta
+  // i) Tabla XRef delta
   finalBuffer.set(xrefTableBytes, writePtr);
   writePtr += xrefTableBytes.length;
 
-  // i) Tráiler y %%EOF final
+  // j) Tráiler y %%EOF final
   finalBuffer.set(trailerBytes, writePtr);
   writePtr += trailerBytes.length;
 
@@ -446,210 +712,12 @@ export function prepareVisualSignatureUpdate(
     byteRange: [0, offset1, offset2, offset3],
     contentsOffset: contentsStartOffset,
     contentsHexLength: hexLength,
-    sigObjectNumber,
-    widgetObjNumber,
-    apObjNumber,
-    pageObjNumber,
+    sigObjectNumber: sigObjectNumber as number,
+    widgetObjNumber: widgetObjNumber as number,
+    apObjNumber: apObjNumber as number,
+    pageObjNumber: targetPageObjNumber,
     newXrefOffset,
-  };
-}
-
-export interface PrepareSignatureOptions {
-  /**
-   * Número de objeto indirecto asignado al diccionario /Sig (por defecto: 999).
-   */
-  sigObjectNumber?: number;
-  /**
-   * Tamaño en bytes del placeholder de firma (por defecto: 8192 bytes = 16384 caracteres hex).
-   */
-  placeholderBytes?: number;
-  /**
-   * Fecha de la firma (por defecto: fecha actual).
-   */
-  signingDate?: Date;
-  /**
-   * Motivo de la firma (opcional).
-   */
-  reason?: string;
-  /**
-   * Ubicación o contexto de la firma (opcional).
-   */
-  location?: string;
-  /**
-   * Información de contacto o identificador del firmante (opcional).
-   */
-  contactInfo?: string;
-  /**
-   * Identificador único (UUID) del firmante (opcional).
-   */
-  signerId?: string;
-}
-
-export interface PreparedSignatureDocument {
-  /**
-   * Buffer completo del PDF con la actualización incremental inyectada.
-   */
-  preparedPdfBuffer: ArrayBuffer;
-  /**
-   * Valores del ByteRange [0, offset1, offset2, offset3].
-   */
-  byteRange: [number, number, number, number];
-  /**
-   * Offset donde comienza el placeholder de /Contents.
-   */
-  contentsOffset: number;
-  /**
-   * Longitud en caracteres hexadecimales del placeholder.
-   */
-  contentsHexLength: number;
-  /**
-   * Número de objeto asignado a la firma.
-   */
-  sigObjectNumber: number;
-  /**
-   * Offset de la nueva tabla XRef delta.
-   */
-  newXrefOffset: number;
-}
-
-/**
- * Prepara una actualización incremental básica mono-objeto (/Type /Sig) sin widget visual.
- */
-export function prepareSignatureUpdate(
-  buffer: ArrayBuffer,
-  lastXrefOffset: number,
-  lastEofPos: number,
-  signerName: string,
-  options: PrepareSignatureOptions = {}
-): PreparedSignatureDocument {
-  if (!buffer || !(buffer instanceof ArrayBuffer || "byteLength" in (buffer as any))) {
-    throw new TypeError("PDFInjector: buffer debe ser un ArrayBuffer válido.");
-  }
-
-  const sigObjectNumber = options.sigObjectNumber ?? 999;
-  const placeholderBytes = options.placeholderBytes ?? 8192;
-  const hexLength = placeholderBytes * 2;
-  const signingDate = options.signingDate ?? new Date();
-  const dateStr = formatPdfDate(signingDate);
-  const safeName = escapePdfString(signerName);
-  const contactInfo = options.signerId ?? options.contactInfo;
-  const safeContactInfo = contactInfo ? escapePdfString(contactInfo) : undefined;
-
-  const encoder = new TextEncoder();
-
-  const rawBytes = new Uint8Array(buffer);
-  const baseSlice = rawBytes.subarray(0, lastEofPos);
-
-  const lastChar = baseSlice[baseSlice.length - 1];
-  const needsNewline = lastChar !== 0x0a && lastChar !== 0x0d;
-  const baseOffset = baseSlice.length + (needsNewline ? 1 : 0);
-
-  const DUMMY_DIGITS = "0000000000";
-  const byteRangePlaceholder = `[ ${DUMMY_DIGITS} ${DUMMY_DIGITS} ${DUMMY_DIGITS} ${DUMMY_DIGITS} ]`;
-
-  let sigObjHeader = `${sigObjectNumber} 0 obj\n<<\n  /Type /Sig\n  /Filter /QProof\n  /SubFilter /MLDSA\n  /Name (${safeName})\n  /M (${dateStr})\n`;
-  if (safeContactInfo) {
-    sigObjHeader += `  /ContactInfo (${safeContactInfo})\n`;
-  }
-  const optionalFields = [
-    options.reason ? `  /Reason (${escapePdfString(options.reason)})\n` : "",
-    options.location ? `  /Location (${escapePdfString(options.location)})\n` : "",
-  ].join("");
-
-  const byteRangeKey = `  /ByteRange `;
-  const contentsKeyAndOpen = `\n  /Contents <`;
-  const textBeforeContents = sigObjHeader + optionalFields + byteRangeKey + byteRangePlaceholder + contentsKeyAndOpen;
-  const textBeforeContentsBytes = encoder.encode(textBeforeContents);
-
-  const sigObjOffset = baseOffset;
-  const offset1 = sigObjOffset + textBeforeContentsBytes.length - 1;
-  const offset2 = offset1 + 1 + hexLength + 1;
-
-  const restOfSigObj = `\n>>\nendobj\n`;
-  const restOfSigObjBytes = encoder.encode(restOfSigObj);
-  const sigFooter = `>` + restOfSigObj;
-  const sigFooterBytes = encoder.encode(sigFooter);
-
-  const newXrefOffset = offset2 + restOfSigObjBytes.length;
-
-  const xrefEntries = [{ objNum: sigObjectNumber, offset: sigObjOffset }];
-  const xrefTable = buildDeltaXrefTable(xrefEntries);
-  const xrefTableBytes = encoder.encode(xrefTable);
-
-  const trailerScanArea = decodeLatin1(
-    rawBytes,
-    Math.max(0, lastXrefOffset - 512),
-    Math.min(rawBytes.length, lastXrefOffset + 8192)
-  );
-
-  let rootRef = "";
-  let idArray = "";
-
-  const rootMatch = /\/Root\s+\d+\s+\d+\s+R/i.exec(trailerScanArea);
-  if (rootMatch) {
-    rootRef = rootMatch[0].trim();
-  }
-
-  const idMatch = /\/ID\s*\[[\s\S]*?\]/i.exec(trailerScanArea);
-  if (idMatch) {
-    idArray = idMatch[0].trim().replace(/\s+/g, " ");
-  }
-
-  const trailerSize = Math.max(1000, sigObjectNumber + 1);
-  const rootRefLine = rootRef ? `  ${rootRef}\n` : "";
-  const idArrayLine = idArray ? `  ${idArray}\n` : "";
-
-  const trailer = `trailer\n<<\n  /Size ${trailerSize}\n  /Prev ${lastXrefOffset}\n${rootRefLine}${idArrayLine}>>\nstartxref\n${newXrefOffset}\n%%EOF\n`;
-  const trailerBytes = encoder.encode(trailer);
-
-  const totalLength = newXrefOffset + xrefTableBytes.length + trailerBytes.length;
-  const offset3 = totalLength - offset2;
-
-  const p0 = "0".padStart(10, "0");
-  const p1 = String(offset1).padStart(10, "0");
-  const p2 = String(offset2).padStart(10, "0");
-  const p3 = String(offset3).padStart(10, "0");
-  const finalByteRangeStr = `[ ${p0} ${p1} ${p2} ${p3} ]`;
-
-  const finalPreContentsText = sigObjHeader + optionalFields + byteRangeKey + finalByteRangeStr + contentsKeyAndOpen;
-  const finalPreContentsBytes = encoder.encode(finalPreContentsText);
-
-  const finalBuffer = new Uint8Array(totalLength);
-  let writePtr = 0;
-
-  finalBuffer.set(baseSlice, 0);
-  writePtr += baseSlice.length;
-
-  if (needsNewline) {
-    finalBuffer[writePtr++] = 0x0a;
-  }
-
-  finalBuffer.set(finalPreContentsBytes, writePtr);
-  writePtr += finalPreContentsBytes.length;
-
-  const contentsStartOffset = writePtr;
-  finalBuffer.fill(0x30, writePtr, writePtr + hexLength);
-  writePtr += hexLength;
-
-  finalBuffer.set(sigFooterBytes, writePtr);
-  writePtr += sigFooterBytes.length;
-
-  finalBuffer.set(xrefTableBytes, writePtr);
-  writePtr += xrefTableBytes.length;
-
-  finalBuffer.set(trailerBytes, writePtr);
-  writePtr += trailerBytes.length;
-
-  if (writePtr !== totalLength) {
-    throw new Error(`PDFInjector: Desfase en el ensamblaje binario (${writePtr} !== ${totalLength}).`);
-  }
-
-  return {
-    preparedPdfBuffer: finalBuffer.buffer,
-    byteRange: [0, offset1, offset2, offset3],
-    contentsOffset: contentsStartOffset,
-    contentsHexLength: hexLength,
-    sigObjectNumber,
-    newXrefOffset,
+    isNewSignatureSheetCreated: createNewSignatureSheet,
+    pagesRootObjNumber: createNewSignatureSheet ? pagesRootObjNumber : undefined,
   };
 }
