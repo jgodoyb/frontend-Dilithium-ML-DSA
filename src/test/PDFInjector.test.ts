@@ -137,7 +137,7 @@ describe("PDFInjector - prepareVisualSignatureUpdate", () => {
     expect(postSignedSigs[0].signerId).toBe(signerId);
   });
 
-  it("fusiona limpiamente anotaciones previas existentes en la página (existingAnnots)", () => {
+  it("fusiona limpiamente anotaciones previas existentes en la página (existingAnnots) y sanitiza corchetes para evitar anidación", () => {
     const { buffer, pageObjNumber } = createBasePdf("12 0 R");
     const lastXref = findLastXrefOffset(buffer);
     const lastEof = findLastEofPosition(buffer);
@@ -150,12 +150,13 @@ describe("PDFInjector - prepareVisualSignatureUpdate", () => {
     const widgetRect = [50, 50, 250, 100];
     const apStream = generateAppearanceStream(998, 200, 50, `Firmado por: ${signerName}`);
 
+    // Pasar intencionalmente existingAnnots con corchetes sucios "[ 12 0 R ]"
     const prepared = prepareVisualSignatureUpdate(
       buffer,
       lastXref,
       lastEof,
       lastPage.pageObjNumber,
-      lastPage.existingAnnots,
+      "[ 12 0 R ]",
       apStream,
       widgetRect,
       signerId,
@@ -168,7 +169,12 @@ describe("PDFInjector - prepareVisualSignatureUpdate", () => {
       }
     );
 
-    // Verificar que la página modificada ahora contiene ambas anotaciones: la previa (12 0 R) y la nueva (997 0 R)
+    // Verificar que la página modificada no contiene corchetes anidados
+    const text = new TextDecoder("latin1").decode(new Uint8Array(prepared.preparedPdfBuffer));
+    expect(text).toContain("/Annots [ 12 0 R 997 0 R ]");
+    expect(text).not.toContain("/Annots [ [");
+    expect(text).not.toContain("] ]");
+
     const newXref = findLastXrefOffset(prepared.preparedPdfBuffer);
     const newPageInfo = findLastPageObject(prepared.preparedPdfBuffer, newXref);
 
@@ -260,14 +266,179 @@ describe("PDFInjector - prepareVisualSignatureUpdate", () => {
     // La segunda línea es la cabecera de subsección
     expect(xrefLines[1]).toMatch(/^\d+\s+\d+$/);
     
-    // Las siguientes 4 líneas son las entradas de objetos de 20/21 bytes con formato estricto con espacio antes de \r\n
+    // Las siguientes 4 líneas son las entradas de objetos de 20 bytes con formato estricto (18 chars + \r\n = 20 bytes)
     for (let i = 2; i <= 5; i++) {
       const line = xrefLines[i];
-      // Formato: "0000000000 00000 n " -> 19 caracteres + \r\n
-      if (line && line.match(/^\d{10}\s\d{5}\s[nf]\s$/)) {
-        expect(line.length).toBe(19);
-        expect(line).toMatch(/^\d{10}\s\d{5}\s[nf]\s$/);
+      // Formato: "0000000000 00000 n" -> 18 caracteres + \r\n (2 bytes) = 20 bytes
+      if (line && line.match(/^\d{10}\s\d{5}\s[nf]$/)) {
+        expect(line.length).toBe(18);
+        expect(line).toMatch(/^\d{10}\s\d{5}\s[nf]$/);
       }
     }
   });
+
+  it("crea dinámicamente una nueva Hoja de Firmas (/Type /Page) al final del documento, actualizando /Pages (/Kids y /Count)", () => {
+    const { buffer } = createBasePdf();
+    const lastXref = findLastXrefOffset(buffer);
+    const lastEof = findLastEofPosition(buffer);
+    const lastPage = findLastPageObject(buffer, lastXref);
+
+    expect(lastPage.isSignatureSheet).toBe(false);
+    expect(lastPage.pagesCount).toBe(1);
+
+    const apStream = generateAppearanceStream(998, 495, 65, "Firmado por: Firmante 1\nFecha: 2026-09-27 UTC");
+    const widgetRect = [50, 700, 545, 765];
+
+    const prepared = prepareVisualSignatureUpdate(
+      buffer,
+      lastXref,
+      lastEof,
+      996, // nuevo id de página
+      "",
+      apStream,
+      widgetRect,
+      "uuid-user-1",
+      "Firmante Uno",
+      {
+        createNewSignatureSheet: true,
+        pagesRootObjNumber: lastPage.pagesRootObjNum,
+        pagesRootDict: lastPage.pagesRootDict,
+        pagesCount: lastPage.pagesCount,
+        kids: lastPage.kids,
+        sheetContentObjNumber: 995,
+        newPageObjNumber: 996,
+        widgetObjNumber: 997,
+        apObjNumber: 998,
+        sigObjectNumber: 999,
+      }
+    );
+
+    expect(prepared.isNewSignatureSheetCreated).toBe(true);
+    expect(prepared.pageObjNumber).toBe(996);
+
+    // Parsear el PDF resultante con la nueva revisión incremental
+    const newXref = findLastXrefOffset(prepared.preparedPdfBuffer);
+    const newPageInfo = findLastPageObject(prepared.preparedPdfBuffer, newXref);
+
+    // 1. Debe detectar que la última página es la Hoja de Firmas recién creada
+    expect(newPageInfo.pageObjNumber).toBe(996);
+    expect(newPageInfo.isSignatureSheet).toBe(true);
+    expect(newPageInfo.pagesCount).toBe(2);
+    expect(newPageInfo.kids).toContain(996);
+    expect(newPageInfo.existingAnnots).toBe("997 0 R");
+    expect(newPageInfo.signatureCountOnSheet).toBe(1);
+
+    // 2. Extraer firmas
+    const sigs = extractSignatures(prepared.preparedPdfBuffer);
+    expect(sigs.length).toBe(1);
+    expect(sigs[0].signerId).toBe("uuid-user-1");
+
+    // 3. Verificar que la tabla XRef delta contiene los 6 objetos registrados
+    const text = new TextDecoder("latin1").decode(new Uint8Array(prepared.preparedPdfBuffer));
+    expect(text).toContain("2 0 obj"); // /Pages actualizado
+    expect(text).toContain("995 0 obj"); // /Contents stream de la hoja
+    expect(text).toContain("996 0 obj"); // /Type /Page nuevo
+    expect(text).toContain("997 0 obj"); // Widget
+    expect(text).toContain("998 0 obj"); // Form XObject
+    expect(text).toContain("999 0 obj"); // /Sig
+    expect(text).toContain("/QProofSheet true");
+    expect(text).toContain("/Count 2");
+  });
+
+  it("reutiliza la Hoja de Firmas existente para firmas posteriores apilándolas verticalmente", () => {
+    // 1. Paso 1: Crear primera firma con Hoja de Firmas
+    const { buffer } = createBasePdf();
+    const lastXref1 = findLastXrefOffset(buffer);
+    const lastEof1 = findLastEofPosition(buffer);
+    const lastPage1 = findLastPageObject(buffer, lastXref1);
+
+    const apStream1 = generateAppearanceStream(998, 495, 65, "Firmado por: Alicia\nAlgoritmo: ML-DSA-65");
+    const prepared1 = prepareVisualSignatureUpdate(
+      buffer,
+      lastXref1,
+      lastEof1,
+      996,
+      "",
+      apStream1,
+      [50, 700, 545, 765],
+      "uuid-alicia",
+      "Alicia",
+      {
+        createNewSignatureSheet: true,
+        pagesRootObjNumber: lastPage1.pagesRootObjNum,
+        pagesRootDict: lastPage1.pagesRootDict,
+        pagesCount: lastPage1.pagesCount,
+        kids: lastPage1.kids,
+        sheetContentObjNumber: 995,
+        newPageObjNumber: 996,
+        widgetObjNumber: 997,
+        apObjNumber: 998,
+        sigObjectNumber: 999,
+      }
+    );
+
+    const signed1Buffer = injectSignatureHex(
+      prepared1.preparedPdfBuffer,
+      prepared1.contentsOffset,
+      prepared1.contentsHexLength,
+      "112233445566778899aabbccddeeff"
+    );
+
+    // 2. Paso 2: Segunda firma (Multifirma sobre la misma Hoja de Firmas existente)
+    const lastXref2 = findLastXrefOffset(signed1Buffer);
+    const lastEof2 = findLastEofPosition(signed1Buffer);
+    const lastPage2 = findLastPageObject(signed1Buffer, lastXref2);
+
+    expect(lastPage2.isSignatureSheet).toBe(true);
+    expect(lastPage2.pageObjNumber).toBe(996);
+    expect(lastPage2.signatureCountOnSheet).toBe(1);
+
+    const apStream2 = generateAppearanceStream(1008, 495, 65, "Firmado por: Roberto\nAlgoritmo: ML-DSA-65");
+    const widgetRect2 = [50, 620, 545, 685]; // Apilado hacia abajo
+
+    const prepared2 = prepareVisualSignatureUpdate(
+      signed1Buffer,
+      lastXref2,
+      lastEof2,
+      lastPage2.pageObjNumber,
+      lastPage2.existingAnnots,
+      apStream2,
+      widgetRect2,
+      "uuid-roberto",
+      "Roberto",
+      {
+        pageDict: lastPage2.pageDict,
+        createNewSignatureSheet: false, // Reutilizar la hoja existente
+        widgetObjNumber: 1007,
+        apObjNumber: 1008,
+        sigObjectNumber: 1009,
+      }
+    );
+
+    expect(prepared2.isNewSignatureSheetCreated).toBe(false);
+    expect(prepared2.pageObjNumber).toBe(996);
+
+    const signed2Buffer = injectSignatureHex(
+      prepared2.preparedPdfBuffer,
+      prepared2.contentsOffset,
+      prepared2.contentsHexLength,
+      "aabbccddeeff001122334455667788"
+    );
+
+    // 3. Verificaciones finales
+    const finalXref = findLastXrefOffset(signed2Buffer);
+    const finalPageInfo = findLastPageObject(signed2Buffer, finalXref);
+
+    expect(finalPageInfo.pageObjNumber).toBe(996);
+    expect(finalPageInfo.isSignatureSheet).toBe(true);
+    expect(finalPageInfo.pagesCount).toBe(2); // El número de páginas no cambia
+    expect(finalPageInfo.existingAnnots).toBe("997 0 R 1007 0 R"); // Ambas anotaciones en la hoja
+    expect(finalPageInfo.signatureCountOnSheet).toBe(2);
+
+    const allSigs = extractSignatures(signed2Buffer);
+    expect(allSigs.length).toBe(2);
+    expect(allSigs[0].signerId).toBe("uuid-alicia");
+    expect(allSigs[1].signerId).toBe("uuid-roberto");
+  });
 });
+

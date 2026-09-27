@@ -354,20 +354,34 @@ function extractExistingAnnots(
   return "";
 }
 
+export interface LastPageInfo {
+  pageObjNumber: number;
+  pageDict: string;
+  existingAnnots: string;
+  isSignatureSheet: boolean;
+  pagesRootObjNum: number;
+  pagesRootDict: string;
+  pagesCount: number;
+  kids: number[];
+  signatureCountOnSheet: number;
+  pageMediaBox: [number, number, number, number];
+}
+
 /**
  * Localiza la última página del documento (/Type /Page) navegando el catálogo (/Root),
  * el árbol de páginas (/Pages) y sus hijos (/Kids) de forma recursiva.
- * Extrae además cualquier lista de anotaciones previa (/Annots) en esa página.
+ * Extrae además la metadata completa del árbol de páginas, lista de anotaciones previa (/Annots),
+ * dimensiones de MediaBox y detección de Hoja de Firmas existente (ISO 32000).
  *
  * @param buffer - ArrayBuffer del documento PDF.
  * @param xrefOffset - Byte offset de la última tabla XRef activa.
- * @returns Objeto con el número del objeto de la última página, su diccionario y anotaciones existentes.
+ * @returns Objeto LastPageInfo con el número de página, diccionarios, conteo de firmas y metadatos.
  * @throws {Error} Si la estructura del catálogo o árbol de páginas es inválida.
  */
 export function findLastPageObject(
   buffer: ArrayBuffer,
   xrefOffset: number
-): { pageObjNumber: number; pageDict: string; existingAnnots: string } {
+): LastPageInfo {
   const bytes = toUint8Array(buffer);
   const xrefMap = parseXrefTable(buffer, xrefOffset);
 
@@ -416,60 +430,145 @@ export function findLastPageObject(
   }
 
   const pagesRootObjNum = parseInt(pagesRefMatch[1], 10);
+  const pagesRootOffset = xrefMap.get(pagesRootObjNum);
+  if (pagesRootOffset === undefined) {
+    throw new Error(`PDFParser: Offset no encontrado para el objeto raíz /Pages (${pagesRootObjNum}).`);
+  }
+
+  const pagesRootText = extractObject(buffer, pagesRootOffset);
+
+  // Extraer /Count del árbol de páginas raíz
+  const countMatch = /\/Count\s+(\d+)/.exec(pagesRootText);
+  const pagesCount = countMatch ? parseInt(countMatch[1], 10) : 1;
+
+  // Extraer /Kids del objeto /Pages raíz
+  const rootKidsMatch = /\/Kids\s*\[([\s\S]*?)\]/i.exec(pagesRootText);
+  const rootKids = rootKidsMatch
+    ? [...rootKidsMatch[1].matchAll(/(\d+)\s+\d+\s+R/g)].map((m) => parseInt(m[1], 10))
+    : [];
+
+  // Extraer MediaBox heredable del nodo raíz si existe
+  let fallbackMediaBox: [number, number, number, number] = [0, 0, 595.28, 841.89];
+  const rootMediaMatch = /\/MediaBox\s*\[\s*([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s*\]/.exec(
+    pagesRootText
+  );
+  if (rootMediaMatch) {
+    fallbackMediaBox = [
+      parseFloat(rootMediaMatch[1]),
+      parseFloat(rootMediaMatch[2]),
+      parseFloat(rootMediaMatch[3]),
+      parseFloat(rootMediaMatch[4]),
+    ];
+  }
 
   // 3. Función recursiva para navegar el árbol /Pages -> /Kids -> /Page
-  function resolveLastPage(objNum: number): { pageObjNumber: number; pageDict: string; existingAnnots: string } {
+  function resolveLastPage(objNum: number): {
+    pageObjNumber: number;
+    pageDict: string;
+    existingAnnots: string;
+    isSignatureSheet: boolean;
+    pageMediaBox: [number, number, number, number];
+  } {
     const offset = xrefMap.get(objNum);
     if (offset === undefined) {
       throw new Error(`PDFParser: Offset no encontrado para el nodo del árbol de páginas (${objNum}).`);
     }
 
     const objText = extractObject(buffer, offset);
-
-    // Extraer el diccionario principal << ... >>
-    const dictMatch = /<<([\s\S]*?)>>/.exec(objText);
-    const dictContent = dictMatch ? dictMatch[1] : objText;
-
-    // Si es un nodo de página hoja (/Type /Page) y no un contenedor /Pages
-    const isPagesNode = /\/Type\s*\/Pages\b/i.test(dictContent);
-    const isPageNode = /\/Type\s*\/Page\b/i.test(dictContent) && !isPagesNode;
+    const isPagesNode = /\/Type\s*\/Pages\b/i.test(objText);
+    const isPageNode = /\/Type\s*\/Page\b/i.test(objText) && !isPagesNode;
 
     if (isPageNode) {
-      const pageDict = dictMatch ? dictMatch[0] : objText;
-      const existingAnnots = extractExistingAnnots(pageDict, buffer, xrefMap);
+      const existingAnnots = extractExistingAnnots(objText, buffer, xrefMap);
+
+      const isSignatureSheet =
+        /\/QProofSheet\b/i.test(objText) ||
+        /\/PieceInfo[\s\S]*?\/QProof/i.test(objText) ||
+        /\(HOJA DE FIRMAS Y CERTIFICACION DIGITAL\)/i.test(objText);
+
+      let pageMediaBox = fallbackMediaBox;
+      const mediaMatch = /\/MediaBox\s*\[\s*([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s*\]/.exec(
+        objText
+      );
+      if (mediaMatch) {
+        pageMediaBox = [
+          parseFloat(mediaMatch[1]),
+          parseFloat(mediaMatch[2]),
+          parseFloat(mediaMatch[3]),
+          parseFloat(mediaMatch[4]),
+        ];
+      }
+
+      // Extraer diccionario exterior completo desde el primer << hasta el último >>
+      const startDict = objText.indexOf("<<");
+      const endDict = objText.lastIndexOf(">>");
+      const pageDict = startDict !== -1 && endDict !== -1 ? objText.substring(startDict, endDict + 2) : objText;
+
       return {
         pageObjNumber: objNum,
         pageDict,
         existingAnnots,
+        isSignatureSheet,
+        pageMediaBox,
       };
     }
 
-    // Si es un nodo intermedio /Pages, extraer sus /Kids
-    const kidsMatch = /\/Kids\s*\[([\s\S]*?)\]/i.exec(dictContent);
+    // Nodo intermedio /Pages: extraer /Kids
+    const kidsMatch = /\/Kids\s*\[([\s\S]*?)\]/i.exec(objText);
     if (!kidsMatch) {
-      // Si no tiene /Kids pero es página implícita
       if (!isPagesNode) {
-        const pageDict = dictMatch ? dictMatch[0] : objText;
-        const existingAnnots = extractExistingAnnots(pageDict, buffer, xrefMap);
+        const existingAnnots = extractExistingAnnots(objText, buffer, xrefMap);
+        const isSignatureSheet =
+          /\/QProofSheet\b/i.test(objText) ||
+          /\/PieceInfo[\s\S]*?\/QProof/i.test(objText);
         return {
           pageObjNumber: objNum,
-          pageDict,
+          pageDict: objText,
           existingAnnots,
+          isSignatureSheet,
+          pageMediaBox: fallbackMediaBox,
         };
       }
       throw new Error(`PDFParser: El nodo /Pages (${objNum}) no contiene el array /Kids.`);
     }
 
-    // Extraer todas las referencias "X Y R"
     const kidRefs = [...kidsMatch[1].matchAll(/(\d+)\s+\d+\s+R/g)].map((m) => parseInt(m[1], 10));
     if (kidRefs.length === 0) {
       throw new Error(`PDFParser: El array /Kids del nodo /Pages (${objNum}) está vacío.`);
     }
 
-    // Tomar el último hijo para navegar a la última página del documento
     const lastKid = kidRefs[kidRefs.length - 1];
     return resolveLastPage(lastKid);
   }
 
-  return resolveLastPage(pagesRootObjNum);
+  const resolved = resolveLastPage(pagesRootObjNum);
+
+  // Calcular conteo de firmas en las anotaciones existentes
+  const annotsRefs = resolved.existingAnnots
+    ? resolved.existingAnnots.trim().split(/\s+/).filter(Boolean).length / 3
+    : 0;
+  const signatureCountOnSheet = Math.floor(annotsRefs);
+
+  // Extraer el diccionario exterior de /Pages raíz
+  const rootStartDict = pagesRootText.indexOf("<<");
+  const rootEndDict = pagesRootText.lastIndexOf(">>");
+  const pagesRootDict =
+    rootStartDict !== -1 && rootEndDict !== -1
+      ? pagesRootText.substring(rootStartDict, rootEndDict + 2)
+      : pagesRootText;
+
+  return {
+    pageObjNumber: resolved.pageObjNumber,
+    pageDict: resolved.pageDict,
+    existingAnnots: resolved.existingAnnots,
+    isSignatureSheet: resolved.isSignatureSheet,
+    pagesRootObjNum,
+    pagesRootDict,
+    pagesCount,
+    kids: rootKids,
+    signatureCountOnSheet,
+    pageMediaBox: resolved.pageMediaBox,
+  };
 }
+
+export const findDocumentPagesStructure = findLastPageObject;

@@ -11,6 +11,76 @@
  */
 
 /**
+ * Genera el flujo crudo de dibujo vectorial PDF para la cabecera y estructura
+ * visual de una Hoja de Firmas (Anexo de Firmas Digitales) según ISO 32000.
+ *
+ * @param pageWidth - Ancho de la página en puntos PDF (por defecto: 595.28 / A4).
+ * @param pageHeight - Alto de la página en puntos PDF (por defecto: 841.89 / A4).
+ * @returns Cadena con los operadores vectoriales PDF para el fondo y cabecera de la hoja.
+ */
+export function generateSignatureSheetDrawingStream(
+  pageWidth = 595.28,
+  pageHeight = 841.89
+): string {
+  const w = pageWidth;
+  const h = pageHeight;
+  const ops: string[] = [];
+
+  ops.push("q");
+
+  // 1. Cabecera superior institucional (Fondo azul pizarra oscuro)
+  ops.push("0.08 0.14 0.22 rg");
+  ops.push(`0 ${(h - 85).toFixed(2)} ${w.toFixed(2)} 85 re`);
+  ops.push("f");
+
+  // 2. Barra de acento cian bajo la cabecera
+  ops.push("0.05 0.45 0.56 rg");
+  ops.push(`0 ${(h - 88).toFixed(2)} ${w.toFixed(2)} 3 re`);
+  ops.push("f");
+
+  // 3. Título principal en la cabecera
+  ops.push("BT");
+  ops.push("/F1B 14 Tf");
+  ops.push("1 1 1 rg");
+  ops.push(`40 ${(h - 38).toFixed(2)} Td`);
+  ops.push("(HOJA DE FIRMAS Y CERTIFICACION DIGITAL) Tj");
+  ops.push("ET");
+
+  // 4. Subtítulo en la cabecera
+  ops.push("BT");
+  ops.push("/F1 8.5 Tf");
+  ops.push("0.85 0.92 0.98 rg");
+  ops.push(`40 ${(h - 56).toFixed(2)} Td`);
+  ops.push("(Criptografia Post-Cuantica NIST FIPS-204 ML-DSA-65 / ISO 32000 PAdES) Tj");
+  ops.push("ET");
+
+  // 5. Texto explicativo de certificación
+  ops.push("BT");
+  ops.push("/F1 7.5 Tf");
+  ops.push("0.65 0.75 0.88 rg");
+  ops.push(`40 ${(h - 72).toFixed(2)} Td`);
+  ops.push("(Las siguientes firmas electronicas certifican la integridad del documento y la identidad de los firmantes.) Tj");
+  ops.push("ET");
+
+  // 6. Línea separadora y pie de página institucional
+  ops.push("0.82 0.85 0.90 RG");
+  ops.push("0.5 w");
+  ops.push(`40 40 m ${(w - 40).toFixed(2)} 40 l`);
+  ops.push("S");
+
+  ops.push("BT");
+  ops.push("/F1 7 Tf");
+  ops.push("0.45 0.50 0.58 rg");
+  ops.push("40 28 Td");
+  ops.push("(Q-Proof Systems | Plataforma de Firma Electronica Cuantica | Hoja de Firmas Generada Oficialmente) Tj");
+  ops.push("ET");
+
+  ops.push("Q\n");
+
+  return ops.join("\n");
+}
+
+/**
  * Opciones para la configuración del stream de apariencia visual (Form XObject).
  */
 export interface AppearanceStreamOptions {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { extractSignatures } from "../lib/PDFExtractor";
-import { prepareSignatureUpdate } from "../lib/PDFInjector";
+import { prepareVisualSignatureUpdate } from "../lib/PDFInjector";
+import { generateAppearanceStream } from "../lib/PDFAppearance";
 import { injectSignatureHex } from "../lib/PDFSigner";
 import { findLastXrefOffset, findLastEofPosition } from "../lib/PDFScanner";
 
@@ -40,14 +41,20 @@ startxref
     const lastEof = findLastEofPosition(originalBuffer);
 
     const testUuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    const apStream = generateAppearanceStream(998, 200, 50, "Firmado por: Jorge Godoy");
 
     // 1. Preparar e inyectar firma con signerId (UUID)
-    const prepared = prepareSignatureUpdate(
+    const prepared = prepareVisualSignatureUpdate(
       originalBuffer,
       lastXref,
       lastEof,
+      3,
+      "",
+      apStream,
+      [50, 50, 250, 100],
+      testUuid,
       "Jorge Godoy",
-      { signerId: testUuid, placeholderBytes: 512, reason: "Prueba unitaria" }
+      { placeholderBytes: 512, reason: "Prueba unitaria", fieldName: `Signature_${Date.now()}` }
     );
 
     const signaturePayloadHex = "abcdef0123456789deadbeefcafebabe";
@@ -79,13 +86,25 @@ startxref
     const lastXref1 = findLastXrefOffset(originalBuffer);
     const lastEof1 = findLastEofPosition(originalBuffer);
     const aliceUuid = "alice-uuid-1111-2222-3333-444455556666";
+    const apStream1 = generateAppearanceStream(995, 200, 50, "Firmado por: Alice");
 
-    const prepared1 = prepareSignatureUpdate(
+    const prepared1 = prepareVisualSignatureUpdate(
       originalBuffer,
       lastXref1,
       lastEof1,
+      3,
+      "",
+      apStream1,
+      [50, 50, 250, 100],
+      aliceUuid,
       "Alice Quantum",
-      { signerId: aliceUuid, sigObjectNumber: 998, placeholderBytes: 256 }
+      {
+        widgetObjNumber: 994,
+        apObjNumber: 995,
+        sigObjectNumber: 996,
+        placeholderBytes: 256,
+        fieldName: "Signature_Alice",
+      }
     );
 
     const sigHex1 = "11112222333344445555666677778888";
@@ -103,12 +122,24 @@ startxref
 
     expect(lastXref2).toBe(prepared1.newXrefOffset);
 
-    const prepared2 = prepareSignatureUpdate(
+    const apStream2 = generateAppearanceStream(998, 200, 50, "Firmado por: Bob");
+    const prepared2 = prepareVisualSignatureUpdate(
       signedBuffer1,
       lastXref2,
       lastEof2,
+      3,
+      "994 0 R",
+      apStream2,
+      [50, 120, 250, 170],
+      bobUuid,
       "Bob Dilithium",
-      { signerId: bobUuid, sigObjectNumber: 999, placeholderBytes: 256 }
+      {
+        widgetObjNumber: 997,
+        apObjNumber: 998,
+        sigObjectNumber: 999,
+        placeholderBytes: 256,
+        fieldName: "Signature_Bob",
+      }
     );
 
     const sigHex2 = "aaaabbbbccccddddeeeeffff00001111";
