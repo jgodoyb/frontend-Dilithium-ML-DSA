@@ -228,6 +228,7 @@ export const Architect = () => {
         <div
           className="absolute top-0 right-[5%] md:right-[15%] w-full md:w-[40%] max-w-lg h-full z-20 pointer-events-auto flex items-center justify-center"
           style={{
+            mixBlendMode: 'screen',
             WebkitMaskImage:
               "linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%), linear-gradient(to top, transparent 0%, black 15%, black 100%)",
             WebkitMaskComposite: "source-in",
@@ -246,7 +247,7 @@ export const Architect = () => {
             palette="duotone"
             fit="contain"
             pixelSize={2.5}
-            revealRadius={120}
+            revealRadius={75}
             softness={0.6}
             clickBurst={true}
             className="w-full h-full"
