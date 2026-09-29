@@ -285,8 +285,18 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
         </AnimatePresence>
       </nav>
 
-      {/* Page content */}
-      <main>{children}</main>
+      {/* Page content with smooth route transitions */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+        >
+          {children}
+        </motion.div>
+      </AnimatePresence>
 
       {/* Global footer */}
       <Footer />
