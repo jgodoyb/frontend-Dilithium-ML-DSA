@@ -1,5 +1,4 @@
 import { Check, X } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
 interface PasswordRequirement {
@@ -23,7 +22,7 @@ export function getPasswordValidation(password: string): PasswordValidation {
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
-  const hasSpecial = /[@#$!%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password);
+  const hasSpecial = /[@#$!%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(password);
   const isValid = hasUpper && hasLower && hasNumber;
   return { hasUpper, hasLower, hasNumber, hasSpecial, isValid };
 }

@@ -73,9 +73,7 @@ const SignatureHub = () => {
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [signatureB64, setSignatureB64] = useState<string | null>(null);
   const [signedPdfBytes, setSignedPdfBytes] = useState<Uint8Array | null>(null);
-  const [signerId, setSignerId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -129,7 +127,6 @@ const SignatureHub = () => {
 
     setState("processing");
     setProgress(0);
-    setSignatureB64(null);
     setSignedPdfBytes(null);
 
     try {
@@ -140,7 +137,6 @@ const SignatureHub = () => {
       if (!session?.access_token) {
         throw new Error("No hay sesión activa. Por favor, inicia sesión de nuevo.");
       }
-      setSignerId(session.user.id);
 
       // 2. Comprobación atómica y registro de cuotas de usuario
       const { data: usageResult, error: usageError } = await (supabase as any).rpc(
@@ -177,7 +173,6 @@ const SignatureHub = () => {
       const rawString = decoder.decode(new Uint8Array(rawBuffer));
       const byteRangeMatches = rawString.match(/\/ByteRange\s*\[/g);
       const isAlreadySigned = byteRangeMatches !== null && byteRangeMatches.length > 0;
-      const existingSignatureCount = byteRangeMatches ? byteRangeMatches.length : 0;
 
       // =========================================================================
       // MOTOR DE FIRMA VISUAL INCREMENTAL ISO 32000 CON HOJA DE FIRMAS DINÁMICA
@@ -338,7 +333,6 @@ const SignatureHub = () => {
 
       const finalSignedPdfBytes = new Uint8Array(finalSignedBuffer);
       setSignedPdfBytes(finalSignedPdfBytes);
-      setSignatureB64(data.signature_b64);
       setState("success");
     } catch (err: any) {
       setState("ready");
@@ -380,9 +374,7 @@ const SignatureHub = () => {
     setFile(null);
     setRawFile(null);
     setProgress(0);
-    setSignatureB64(null);
     setSignedPdfBytes(null);
-    setSignerId(null);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
@@ -392,9 +384,7 @@ const SignatureHub = () => {
     setFile(null);
     setRawFile(null);
     setProgress(0);
-    setSignatureB64(null);
     setSignedPdfBytes(null);
-    setSignerId(null);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 

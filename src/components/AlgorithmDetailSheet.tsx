@@ -1,7 +1,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { BookOpen, ArrowRightLeft, Code2, Link2, GitBranch } from "lucide-react";
-import { algorithmDetails, parameterTooltips, type AlgorithmDetail } from "@/data/algorithmDetails";
+import { algorithmDetails, parameterTooltips } from "@/data/algorithmDetails";
 import { allAlgorithms } from "@/components/AlgorithmBlueprintSection";
 import KaTeX from "@/components/KaTeX";
 

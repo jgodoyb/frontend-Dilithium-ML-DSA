@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import {
   Search, ChevronDown, ChevronRight, Binary, Package, Calculator,
-  Layers, Shuffle, Shield, Key, FileCheck, Cpu, Hash, Box, Lock,
+  Layers, Shuffle, Shield, Cpu, Hash, Box, Lock,
   Grid3X3, Boxes, ScanLine, Zap,
 } from "lucide-react";
 import AlgorithmDetailSheet from "./AlgorithmDetailSheet";

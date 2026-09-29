@@ -216,7 +216,7 @@ function buildDeltaXrefTable(entries: Array<{ objNum: number; offset: number }>)
 function buildUpdatedPageObject(
   originalPageText: string,
   pageObjNumber: number,
-  _externalExistingAnnots: string,
+  existingAnnots: string,
   widgetObjNumber: number
 ): string {
   // Expresión regular segura para capturar el array de Annots
@@ -228,18 +228,27 @@ function buildUpdatedPageObject(
 
   if (match) {
     // Extracción y limpieza quirúrgica solo del interior del array
-    const oldInner = match[1].replace(/[\[\]]/g, "").trim().replace(/\s+/g, " ");
+    const oldInner = match[1].replace(/[[\]]/g, "").trim().replace(/\s+/g, " ");
     const merged = oldInner.length > 0 ? `${oldInner} ${newAnnotRef}` : newAnnotRef;
     
     // Reemplazo exacto que no altera el resto del diccionario (evita trigger de Adobe MDP)
     updatedText = originalPageText.replace(annotsRegex, `/Annots [ ${merged} ]`);
   } else {
-    // Si no existe, se inyecta de forma segura antes del cierre principal
-    const insertPos = originalPageText.lastIndexOf(">>");
-    if (insertPos !== -1) {
-      const before = originalPageText.substring(0, insertPos);
-      const after = originalPageText.substring(insertPos);
-      updatedText = `${before}  /Annots [ ${newAnnotRef} ]\n${after}`;
+    // Si no existe directamente un array inline, verificar si había un /Annots de referencia indirecta previa
+    const indirectAnnotsRegex = /\/Annots\s+\d+\s+\d+\s+R/i;
+    const cleanExisting = (existingAnnots || "").replace(/[[\]]/g, "").trim().replace(/\s+/g, " ");
+    const combinedAnnots = cleanExisting.length > 0 ? `${cleanExisting} ${newAnnotRef}` : newAnnotRef;
+
+    if (indirectAnnotsRegex.test(originalPageText)) {
+      updatedText = originalPageText.replace(indirectAnnotsRegex, `/Annots [ ${combinedAnnots} ]`);
+    } else {
+      // Si no existe, se inyecta de forma segura antes del cierre principal
+      const insertPos = originalPageText.lastIndexOf(">>");
+      if (insertPos !== -1) {
+        const before = originalPageText.substring(0, insertPos);
+        const after = originalPageText.substring(insertPos);
+        updatedText = `${before}  /Annots [ ${combinedAnnots} ]\n${after}`;
+      }
     }
   }
 
@@ -400,7 +409,7 @@ export function prepareVisualSignatureUpdate(
   signerName: string,
   options: PrepareVisualSignatureOptions = {}
 ): PreparedVisualSignatureDocument {
-  if (!buffer || !(buffer instanceof ArrayBuffer || "byteLength" in (buffer as any))) {
+  if (!buffer || !(buffer instanceof ArrayBuffer || (typeof buffer === "object" && "byteLength" in (buffer as { byteLength: unknown })))) {
     throw new TypeError("PDFInjector: buffer debe ser un ArrayBuffer válido.");
   }
   if (!Array.isArray(widgetRect) || widgetRect.length !== 4) {
@@ -414,7 +423,7 @@ export function prepareVisualSignatureUpdate(
   let sigObjectNumber = options.sigObjectNumber;
   let newPageObjNumber = options.newPageObjNumber;
   let sheetContentObjNumber = options.sheetContentObjNumber;
-  let pagesRootObjNumber = options.pagesRootObjNumber ?? 2;
+  const pagesRootObjNumber = options.pagesRootObjNumber ?? 2;
 
   // Resolución y asignación dinámica de IDs para blindaje de colisiones
   try {

@@ -48,7 +48,7 @@ startxref
     );
 
     const signable = extractSignableBytes(prepared.preparedPdfBuffer, prepared.byteRange);
-    const [r0, lenA, offsetB, lenB] = prepared.byteRange;
+    const [, lenA, offsetB, lenB] = prepared.byteRange;
 
     expect(signable.length).toBe(lenA + lenB);
 

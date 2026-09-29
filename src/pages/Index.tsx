@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, ChevronRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 // Variants para las animaciones tipo Consultora (pesadas, sin rebotes exagerados)
 const fadeUp = {
@@ -15,7 +15,6 @@ const staggerContainer = {
 
 // Hexagon Mask clip-path para darle identidad a Q-Proof. Se diferencia del Chevron de Accenture.
 const clipHexSlash = "polygon(0 0, 100% 0, 85% 100%, 0% 100%)";
-const clipHexSlashReverse = "polygon(15% 0, 100% 0, 100% 100%, 0% 100%)";
 
 const Index = () => {
   const navigate = useNavigate();
