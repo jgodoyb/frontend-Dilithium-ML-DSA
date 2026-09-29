@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Lock, Shield, ServerOff, KeyRound, UserCheck, AlertTriangle } from "lucide-react";
+import { Lock, Shield, ServerOff, KeyRound } from "lucide-react";
 
 const PrivacyPage = () => (
   <motion.div

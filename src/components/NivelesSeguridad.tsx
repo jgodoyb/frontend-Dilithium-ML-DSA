@@ -1,6 +1,5 @@
 import { useState } from "react";
 import KaTeX from "./KaTeX";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Accordion,
   AccordionContent,

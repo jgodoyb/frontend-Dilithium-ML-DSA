@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  User, 
   Key, 
   ShieldCheck, 
   Copy, 
@@ -9,7 +8,6 @@ import {
   Briefcase, 
   Activity, 
   History,
-  ExternalLink,
   Shield,
   Zap,
   Crown,
@@ -24,10 +22,8 @@ import { useMockAuth } from "@/contexts/MockAuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Progress } from "@/components/ui/progress";
 
 interface UserProfile {
   full_name: string;

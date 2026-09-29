@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, EyeOff, Shield, Info, Loader2, Hexagon } from "lucide-react";
+import { Eye, EyeOff, Info, Loader2, Hexagon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import AuthSplitLayout from "@/components/AuthSplitLayout";
-import { useMockAuth } from "@/contexts/MockAuthContext";
 import PasswordStrengthIndicator, { getPasswordValidation } from "@/components/PasswordStrengthIndicator";
 import { useRateLimit } from "@/lib/security";
 import { useToast } from "@/hooks/use-toast";
@@ -65,9 +64,7 @@ const Auth = () => {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
   const [showRecoveryNow, setShowRecoveryNow] = useState(false);
-  const { login } = useMockAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -141,7 +138,6 @@ const Auth = () => {
     } else {
       // Record attempt ONLY on failure
       const nextCheck = loginLimiter.check(true);
-      setAttemptsLeft(nextCheck.remaining);
       
       if (!nextCheck.allowed) {
         setShowRecoveryNow(true);

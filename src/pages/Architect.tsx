@@ -16,13 +16,9 @@ import {
   GitBranch,
   Cpu,
   Network,
-  ArrowLeft,
-  X,
   Hexagon,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 
-import Footer from "@/components/Footer";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -44,7 +40,6 @@ import certCisco from "@/assets/cert-cisco.jpg";
 import certIot from "@/assets/cert-iot.jpg";
 import certEnglish from "@/assets/cert-english.jpg";
 import torHardSciences from "@/assets/tor-hard-sciences.jpg";
-import torDiscern from "@/assets/tor-discern.jpg";
 
 const GITHUB_URL = "https://github.com/jgodoyb";
 const LINKEDIN_URL = "https://www.linkedin.com/in/jorge-godoy-beltr%C3%A1n-068622284/";

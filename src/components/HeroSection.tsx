@@ -1,4 +1,4 @@
-import { ChevronDown, Shield, Lock, Key } from "lucide-react";
+import { Shield, Lock, Key } from "lucide-react";
 
 const HeroSection = () => {
   return (

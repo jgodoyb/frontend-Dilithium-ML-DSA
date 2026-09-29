@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Github, Linkedin, Shield } from "lucide-react";
+import { Github, Linkedin } from "lucide-react";
 
 const GITHUB_URL = "https://github.com/jgodoyb";
 const LINKEDIN_URL = "https://www.linkedin.com/in/jorge-godoy-beltr%C3%A1n-068622284/";

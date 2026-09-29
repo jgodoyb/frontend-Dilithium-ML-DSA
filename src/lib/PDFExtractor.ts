@@ -76,7 +76,7 @@ function decodeLatin1(bytes: Uint8Array, start: number, end: number): string {
  * @throws {TypeError} Si el buffer de entrada es inválido.
  */
 export function extractSignatures(buffer: ArrayBuffer): ExtractedSignature[] {
-  if (!buffer || !(buffer instanceof ArrayBuffer || "byteLength" in (buffer as any))) {
+  if (!buffer || !(buffer instanceof ArrayBuffer || (typeof buffer === "object" && "byteLength" in (buffer as { byteLength: unknown })))) {
     throw new TypeError("PDFExtractor: buffer debe ser un ArrayBuffer válido.");
   }
 

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   PackageOpen, Fingerprint, Grid3X3, Target, Zap, Lightbulb, ShieldCheck, ArrowRight, Info
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 const verificacionSteps = [
   {

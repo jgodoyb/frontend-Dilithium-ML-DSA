@@ -7,12 +7,9 @@ import { motion } from "framer-motion";
 import {
   Check,
   Zap,
-  Shield,
-  Crown,
   Building2,
   Linkedin,
   Github,
-  ArrowRight,
   ChevronRight,
   Globe,
   Cpu,

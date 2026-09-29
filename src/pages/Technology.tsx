@@ -9,6 +9,16 @@ import VerificacionSection from "@/components/VerificacionSection";
 import AlgorithmBlueprintSection from "@/components/AlgorithmBlueprintSection";
 import LatticeVideo from "@/components/LatticeVideo";
 
+// Categorías para el Sticky Sidebar ordenadas según petición
+const NAV_ITEMS = [
+  { id: "fundamentos", label: "Fundamentos FIPS 204" },
+  { id: "rendimiento", label: "Estándar y Rendimiento" },
+  { id: "generacion", label: "Generación de Claves" },
+  { id: "firma", label: "Proceso de Firma" },
+  { id: "verificacion", label: "Proceso de Verificación" },
+  { id: "blueprint", label: "Arquitectura (Blueprint)" }
+];
+
 // --- MAIN WRAPPER ---
 const Technology = () => {
   const [activeSection, setActiveSection] = useState("fundamentos");
@@ -20,19 +30,9 @@ const Technology = () => {
     restDelta: 0.001
   });
 
-  // Categorías para el Sticky Sidebar ordenadas según petición
-  const navItems = [
-    { id: "fundamentos", label: "Fundamentos FIPS 204" },
-    { id: "rendimiento", label: "Estándar y Rendimiento" },
-    { id: "generacion", label: "Generación de Claves" },
-    { id: "firma", label: "Proceso de Firma" },
-    { id: "verificacion", label: "Proceso de Verificación" },
-    { id: "blueprint", label: "Arquitectura (Blueprint)" }
-  ];
-
   useEffect(() => {
     const handleScroll = () => {
-      const sections = navItems.map(item => document.getElementById(item.id));
+      const sections = NAV_ITEMS.map(item => document.getElementById(item.id));
       let current = "";
       
       for (const section of sections) {
@@ -50,7 +50,7 @@ const Technology = () => {
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [activeSection, navItems]);
+  }, [activeSection]);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -136,7 +136,7 @@ const Technology = () => {
             <h3 className="text-xs uppercase tracking-widest text-[#0e7490] font-bold mb-8 flex items-center gap-2">
               Índice de Arquitectura
             </h3>
-            {navItems.map((item) => (
+            {NAV_ITEMS.map((item) => (
               <button
                 key={item.id}
                 onClick={() => scrollTo(item.id)}

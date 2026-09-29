@@ -1,5 +1,4 @@
 import KaTeX from "./KaTeX";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck, Cpu, Grid3X3, ExternalLink } from "lucide-react";
 
 const QueEsSection = () => {
