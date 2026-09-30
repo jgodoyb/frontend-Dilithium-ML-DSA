@@ -13,24 +13,20 @@ interface Props {
   onClose: () => void;
 }
 
-const levelColorVar = (level: number) => `var(--bp-${level})`;
-const levelColor = (level: number) => `hsl(${levelColorVar(level)})`;
-
 // Render pseudocode with parameter tooltips inline
 const PseudocodeBlock = ({ code, params }: { code: string; params: string[] }) => {
   const lines = code.split("\n");
   return (
-    <div className="rounded-lg border border-border bg-black/40 backdrop-blur-sm overflow-x-auto">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50">
-        <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-        <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
-        <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
-        <span className="text-[10px] font-mono text-muted-foreground ml-2">pseudocode</span>
+    <div className="rounded-none sm:rounded-sm border border-zinc-800 bg-black overflow-x-auto">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 bg-zinc-900/60">
+        <span className="text-[10px] font-mono uppercase tracking-widest text-cyan-400 font-bold">
+          // PSEUDOCODE_SPECIFICATION
+        </span>
       </div>
-      <pre className="p-4 text-[13px] leading-relaxed font-mono text-foreground/90">
+      <pre className="p-4 text-[13px] leading-relaxed font-mono text-zinc-300">
         {lines.map((line, i) => (
           <div key={i} className="flex">
-            <span className="select-none w-8 text-right mr-4 text-muted-foreground/40 text-[11px]">
+            <span className="select-none w-8 text-right mr-4 text-zinc-600 text-[11px]">
               {i + 1}
             </span>
             <HighlightedLine line={line} params={params} />
@@ -61,7 +57,7 @@ const HighlightedLine = ({ line, params }: { line: string; params: string[] }) =
     if (token === "⟨KW⟩") { inKw = true; return; }
     if (token === "⟨/KW⟩") { inKw = false; return; }
     if (inKw) {
-      elements.push(<span key={i} className="text-primary font-semibold">{token}</span>);
+      elements.push(<span key={i} className="text-cyan-400 font-semibold">{token}</span>);
     } else if (token) {
       elements.push(<ParameterAwareText key={i} text={token} params={params} />);
     }
@@ -70,7 +66,7 @@ const HighlightedLine = ({ line, params }: { line: string; params: string[] }) =
   return (
     <span className="flex-1">
       {elements}
-      {commentPart && <span className="text-muted-foreground/50 italic">{commentPart}</span>}
+      {commentPart && <span className="text-zinc-500 italic">{commentPart}</span>}
     </span>
   );
 };
@@ -100,13 +96,13 @@ const ParameterAwareText = ({ text, params }: { text: string; params: string[] }
           return (
             <Tooltip key={i}>
               <TooltipTrigger asChild>
-                <span className="text-accent cursor-help border-b border-dashed border-accent/40 hover:border-accent transition-colors">
+                <span className="text-zinc-100 cursor-help border-b border-dashed border-cyan-500/50 hover:border-cyan-400 transition-colors">
                   {part}
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs">
-                <p className="font-semibold text-xs mb-1">{info.symbol} — {info.description}</p>
-                <p className="text-[10px] text-muted-foreground">{info.values}</p>
+              <TooltipContent side="top" className="max-w-xs bg-zinc-900 border border-zinc-800 text-zinc-200 font-mono text-xs rounded-none">
+                <p className="font-semibold text-xs mb-1 text-cyan-400">{info.symbol} — {info.description}</p>
+                <p className="text-[10px] text-zinc-400">{info.values}</p>
               </TooltipContent>
             </Tooltip>
           );
@@ -119,36 +115,27 @@ const ParameterAwareText = ({ text, params }: { text: string; params: string[] }
 
 // ─── Dependencies Section ───────────────────────────────────────────
 
-const DependenciesSection = ({ deps, level }: { deps: string[]; level: number }) => {
+const DependenciesSection = ({ deps }: { deps: string[] }) => {
   if (deps.length === 0) return null;
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <GitBranch className="w-4 h-4" style={{ color: levelColor(level) }} />
-        <h3 className="text-sm font-semibold text-foreground">🔗 Dependencias</h3>
+        <GitBranch className="w-4 h-4 text-cyan-400" />
+        <h3 className="text-sm font-mono font-bold uppercase tracking-wider text-zinc-200">
+          // DEPENDENCIAS_REQUERIDAS
+        </h3>
       </div>
       <div className="flex flex-wrap gap-2">
         {deps.map((depId) => {
           const depAlg = allAlgorithms.find((a) => a.id === depId);
           if (!depAlg) return null;
-          const depLevel = depAlg.level;
           return (
             <span
               key={depId}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono transition-all"
-              style={{
-                borderColor: `hsl(${levelColorVar(depLevel)} / 0.35)`,
-                background: `hsl(${levelColorVar(depLevel)} / 0.08)`,
-                color: `hsl(${levelColorVar(depLevel)})`,
-              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-none sm:rounded-sm border border-zinc-800 bg-zinc-900 text-xs font-mono text-zinc-300"
             >
-              <span
-                className="text-[9px] font-bold px-1 py-0.5 rounded"
-                style={{
-                  background: `hsl(${levelColorVar(depLevel)} / 0.15)`,
-                }}
-              >
+              <span className="text-[9px] font-bold px-1 py-0.2 border border-zinc-700 bg-zinc-950 text-cyan-400">
                 {depAlg.algNum}
               </span>
               <span className="font-medium">{depAlg.name}</span>
@@ -168,25 +155,19 @@ const AlgorithmDetailSheet = ({ algorithmId, algorithmName, level, deps, onClose
   return (
     <TooltipProvider delayDuration={200}>
       <Sheet open={!!detail} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent className="w-full sm:max-w-lg md:max-w-xl overflow-y-auto border-l" style={{ borderColor: `hsl(${levelColorVar(level)} / 0.2)` }}>
+        <SheetContent className="w-full sm:max-w-lg md:max-w-xl overflow-y-auto border-l border-zinc-800 bg-zinc-950 text-zinc-200 font-mono">
           {detail && (
             <>
-              <SheetHeader className="pb-4 border-b border-border/50">
+              <SheetHeader className="pb-4 border-b border-zinc-800">
                 <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className="font-mono text-[10px] font-bold px-2 py-0.5 rounded"
-                    style={{
-                      background: `hsl(${levelColorVar(level)} / 0.12)`,
-                      color: levelColor(level),
-                    }}
-                  >
+                  <span className="text-[10px] font-bold px-2 py-0.5 border border-cyan-500/40 bg-cyan-950/30 text-cyan-300">
                     {detail.fipsNumber}
                   </span>
-                  <span className="text-[10px] font-mono text-muted-foreground">
-                    Nivel {level} · FIPS 204
+                  <span className="text-[10px] text-zinc-500">
+                    Nivel [{String(level).padStart(2, "0")}] · FIPS 204
                   </span>
                 </div>
-                <SheetTitle className="text-xl font-bold text-foreground">
+                <SheetTitle className="text-xl font-bold font-mono text-zinc-100 uppercase tracking-tight">
                   {algorithmName || algorithmId}
                 </SheetTitle>
               </SheetHeader>
@@ -195,10 +176,12 @@ const AlgorithmDetailSheet = ({ algorithmId, algorithmName, level, deps, onClose
                 {/* Summary */}
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <BookOpen className="w-4 h-4" style={{ color: levelColor(level) }} />
-                    <h3 className="text-sm font-semibold text-foreground">Resumen Funcional</h3>
+                    <BookOpen className="w-4 h-4 text-cyan-400" />
+                    <h3 className="text-xs uppercase tracking-wider font-bold text-zinc-200">
+                      // RESUMEN_FUNCIONAL
+                    </h3>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
+                  <p className="text-xs text-zinc-400 leading-relaxed font-sans">
                     {detail.summary}
                   </p>
                 </div>
@@ -206,29 +189,35 @@ const AlgorithmDetailSheet = ({ algorithmId, algorithmName, level, deps, onClose
                 {/* Inputs / Outputs */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <ArrowRightLeft className="w-4 h-4" style={{ color: levelColor(level) }} />
-                    <h3 className="text-sm font-semibold text-foreground">Ficha Técnica</h3>
+                    <ArrowRightLeft className="w-4 h-4 text-cyan-400" />
+                    <h3 className="text-xs uppercase tracking-wider font-bold text-zinc-200">
+                      // ESPECIFICACIÓN_I_O
+                    </h3>
                   </div>
                   <div className="space-y-3">
                     {detail.inputs.length > 0 && (
-                      <div className="rounded-lg border border-border p-3 bg-card/50">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Inputs</p>
+                      <div className="border border-zinc-800 p-3 bg-zinc-900/60 rounded-none sm:rounded-sm">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-2">
+                          ENTRADAS (INPUTS)
+                        </p>
                         {detail.inputs.map((inp, i) => (
-                          <div key={i} className="flex items-baseline gap-2 text-sm mb-1 last:mb-0">
-                            <KaTeX math={inp.name} className="text-primary" />
-                            <span className="text-muted-foreground/60">—</span>
-                            <span className="text-muted-foreground text-xs">{inp.description}</span>
+                          <div key={i} className="flex items-baseline gap-2 text-xs mb-1 last:mb-0">
+                            <KaTeX math={inp.name} className="text-zinc-200 font-bold" />
+                            <span className="text-zinc-600">—</span>
+                            <span className="text-zinc-400 text-xs">{inp.description}</span>
                           </div>
                         ))}
                       </div>
                     )}
-                    <div className="rounded-lg border border-border p-3 bg-card/50">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Outputs</p>
+                    <div className="border border-zinc-800 p-3 bg-zinc-900/60 rounded-none sm:rounded-sm">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-2">
+                        SALIDAS (OUTPUTS)
+                      </p>
                       {detail.outputs.map((out, i) => (
-                        <div key={i} className="flex items-baseline gap-2 text-sm mb-1 last:mb-0">
-                          <KaTeX math={out.name} className="text-primary" />
-                          <span className="text-muted-foreground/60">—</span>
-                          <span className="text-muted-foreground text-xs">{out.description}</span>
+                        <div key={i} className="flex items-baseline gap-2 text-xs mb-1 last:mb-0">
+                          <KaTeX math={out.name} className="text-zinc-200 font-bold" />
+                          <span className="text-zinc-600">—</span>
+                          <span className="text-zinc-400 text-xs">{out.description}</span>
                         </div>
                       ))}
                     </div>
@@ -236,14 +225,16 @@ const AlgorithmDetailSheet = ({ algorithmId, algorithmName, level, deps, onClose
                 </div>
 
                 {/* Dependencies */}
-                <DependenciesSection deps={deps} level={level} />
+                <DependenciesSection deps={deps} />
 
                 {/* Pseudocode */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Code2 className="w-4 h-4" style={{ color: levelColor(level) }} />
-                    <h3 className="text-sm font-semibold text-foreground">Pseudocódigo</h3>
-                    <span className="text-[10px] text-muted-foreground ml-auto">FIPS 204</span>
+                    <Code2 className="w-4 h-4 text-cyan-400" />
+                    <h3 className="text-xs uppercase tracking-wider font-bold text-zinc-200">
+                      // PSEUDOCÓDIGO_OFICIAL
+                    </h3>
+                    <span className="text-[10px] text-zinc-500 ml-auto">FIPS 204</span>
                   </div>
                   <PseudocodeBlock code={detail.pseudocode} params={detail.parameters} />
                 </div>
@@ -252,8 +243,10 @@ const AlgorithmDetailSheet = ({ algorithmId, algorithmName, level, deps, onClose
                 {detail.parameters.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-3">
-                      <Link2 className="w-4 h-4" style={{ color: levelColor(level) }} />
-                      <h3 className="text-sm font-semibold text-foreground">Parámetros Vinculados</h3>
+                      <Link2 className="w-4 h-4 text-cyan-400" />
+                      <h3 className="text-xs uppercase tracking-wider font-bold text-zinc-200">
+                        // PARÁMETROS_VINCULADOS
+                      </h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {detail.parameters.map((p) => {
@@ -262,21 +255,14 @@ const AlgorithmDetailSheet = ({ algorithmId, algorithmName, level, deps, onClose
                         return (
                           <Tooltip key={p}>
                             <TooltipTrigger asChild>
-                              <span
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border cursor-help text-xs font-mono transition-all hover:scale-105"
-                                style={{
-                                  borderColor: `hsl(${levelColorVar(level)} / 0.3)`,
-                                  background: `hsl(${levelColorVar(level)} / 0.06)`,
-                                  color: levelColor(level),
-                                }}
-                              >
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-300 cursor-help text-xs font-mono transition-colors hover:border-cyan-400 hover:text-cyan-300">
                                 {info.symbol}
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs">
-                              <p className="font-semibold text-xs mb-1">{info.symbol}</p>
-                              <p className="text-xs text-muted-foreground">{info.description}</p>
-                              <p className="text-[10px] text-muted-foreground/70 mt-1">{info.values}</p>
+                            <TooltipContent side="top" className="max-w-xs bg-zinc-900 border border-zinc-800 text-zinc-200 font-mono text-xs rounded-none">
+                              <p className="font-semibold text-xs mb-1 text-cyan-400">{info.symbol}</p>
+                              <p className="text-xs text-zinc-400">{info.description}</p>
+                              <p className="text-[10px] text-zinc-500 mt-1">{info.values}</p>
                             </TooltipContent>
                           </Tooltip>
                         );

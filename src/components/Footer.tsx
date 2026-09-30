@@ -6,7 +6,7 @@ const LINKEDIN_URL = "https://www.linkedin.com/in/jorge-godoy-beltr%C3%A1n-06862
 
 const Footer = ({ className }: { className?: string }) => {
   return (
-    <footer className={`bg-[#030303] border-t border-white/5 text-slate-300 ${className || ""}`}>
+    <footer className={`relative z-10 bg-[#030303] border-t border-white/5 text-slate-300 ${className || ""}`}>
       <div className="max-w-7xl mx-auto px-4 py-16 relative overflow-hidden">
         {/* Decorative background glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[300px] bg-[#0e7490]/5 blur-[120px] rounded-[100%] pointer-events-none mix-blend-screen" />

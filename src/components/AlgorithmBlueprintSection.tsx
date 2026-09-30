@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import {
   Search, ChevronDown, ChevronRight, Binary, Package, Calculator,
   Layers, Shuffle, Shield, Cpu, Hash, Box, Lock,
-  Grid3X3, Boxes, ScanLine, Zap,
+  Grid3X3, Boxes, ScanLine, Zap, X,
 } from "lucide-react";
 import AlgorithmDetailSheet from "./AlgorithmDetailSheet";
 
@@ -13,7 +13,7 @@ export interface Algorithm {
   algNum: string;
   name: string;
   deps: string[];
-  shakeException?: string; // e.g. "SHAKE-128 (Clase G)" for RejNTTPoly
+  shakeException?: string;
 }
 
 export interface Level {
@@ -74,10 +74,10 @@ export const levels: Level[] = [
   {
     level: 5, label: "Expansión & Muestreo", category: "Lógica de Muestreo", icon: Shuffle,
     algorithms: [
-      { id: "rejntt", algNum: "Alg 30", name: "RejNTTPoly", deps: ["c3b"], shakeException: "SHAKE-128 (Clase G)" },
-      { id: "rejbnd", algNum: "Alg 31", name: "RejBoundedPoly", deps: ["chb"], shakeException: "SHAKE-256 (Clase H)" },
-      { id: "expa", algNum: "Alg 32", name: "ExpandA", deps: ["ity", "rejntt"], shakeException: "SHAKE-128 (Clase G)" },
-      { id: "exps", algNum: "Alg 33", name: "ExpandS", deps: ["ity", "rejbnd"], shakeException: "SHAKE-256 (Clase H)" },
+      { id: "rejntt", algNum: "Alg 30", name: "RejNTTPoly", deps: ["c3b"], shakeException: "SHAKE-128" },
+      { id: "rejbnd", algNum: "Alg 31", name: "RejBoundedPoly", deps: ["chb"], shakeException: "SHAKE-256" },
+      { id: "expa", algNum: "Alg 32", name: "ExpandA", deps: ["ity", "rejntt"], shakeException: "SHAKE-128" },
+      { id: "exps", algNum: "Alg 33", name: "ExpandS", deps: ["ity", "rejbnd"], shakeException: "SHAKE-256" },
     ],
   },
   {
@@ -118,9 +118,9 @@ export const levels: Level[] = [
   {
     level: 10, label: "Core Interno", category: "API Pública", icon: Lock,
     algorithms: [
-      { id: "kgi", algNum: "Alg 6", name: "ML-DSA.KeyGen_internal", deps: ["ity", "expa", "exps", "ntt", "intt", "p2r", "pke", "ske"], shakeException: "SHAKE-256 (Clase H)" },
-      { id: "sgi", algNum: "Alg 7", name: "ML-DSA.Sign_internal", deps: ["skd", "ntt", "expa", "expm", "intt", "hb", "w1e", "sib", "lb", "mkh", "sge"], shakeException: "SHAKE-256 (Clase H)" },
-      { id: "vfi", algNum: "Alg 8", name: "ML-DSA.Verify_internal", deps: ["pkd", "sgd", "expa", "sib", "ntt", "intt", "ush", "w1e"], shakeException: "SHAKE-256 (Clase H)" },
+      { id: "kgi", algNum: "Alg 6", name: "ML-DSA.KeyGen_internal", deps: ["ity", "expa", "exps", "ntt", "intt", "p2r", "pke", "ske"], shakeException: "SHAKE-256" },
+      { id: "sgi", algNum: "Alg 7", name: "ML-DSA.Sign_internal", deps: ["skd", "ntt", "expa", "expm", "intt", "hb", "w1e", "sib", "lb", "mkh", "sge"], shakeException: "SHAKE-256" },
+      { id: "vfi", algNum: "Alg 8", name: "ML-DSA.Verify_internal", deps: ["pkd", "sgd", "expa", "sib", "ntt", "intt", "ush", "w1e"], shakeException: "SHAKE-256" },
     ],
   },
   {
@@ -140,25 +140,54 @@ export const allAlgorithms = levels.flatMap((l) =>
   l.algorithms.map((a) => ({ ...a, level: l.level }))
 );
 
-// Recursively collect all transitive deps
-function collectAllDeps(id: string, visited = new Set<string>()): Set<string> {
-  if (visited.has(id)) return visited;
-  const alg = allAlgorithms.find((a) => a.id === id);
-  if (!alg) return visited;
-  for (const dep of alg.deps) {
-    visited.add(dep);
-    collectAllDeps(dep, visited);
-  }
-  return visited;
+interface DependencyAnalysis {
+  directDeps: Set<string>;
+  transitiveDeps: Set<string>;
+  allDeps: Set<string>;
 }
 
-// ─── Color helpers ──────────────────────────────────────────────────
+// Búsqueda en anchura (BFS) recursiva de clausura transitiva
+function analyzeDependencies(rootId: string | null): DependencyAnalysis {
+  const direct = new Set<string>();
+  const transitive = new Set<string>();
+  const all = new Set<string>();
 
-const levelColorVar = (level: number) => `var(--bp-${level})`;
-const levelColor = (level: number) => `hsl(${levelColorVar(level)})`;
-const levelBg = (level: number) => `hsl(${levelColorVar(level)} / 0.08)`;
-const levelBorder = (level: number) => `hsl(${levelColorVar(level)} / 0.25)`;
-const levelGlow = (level: number) => `0 0 20px hsl(${levelColorVar(level)} / 0.15)`;
+  if (!rootId) {
+    return { directDeps: direct, transitiveDeps: transitive, allDeps: all };
+  }
+
+  const rootAlg = allAlgorithms.find((a) => a.id === rootId);
+  if (!rootAlg) {
+    return { directDeps: direct, transitiveDeps: transitive, allDeps: all };
+  }
+
+  // Grado 1: Dependencias directas del algoritmo seleccionado
+  for (const dep of rootAlg.deps) {
+    direct.add(dep);
+    all.add(dep);
+  }
+
+  // Grado 2 hasta Nivel 0: Búsqueda recursiva/BFS de todas las dependencias hijas
+  const queue = [...rootAlg.deps];
+  const visited = new Set<string>([rootId, ...rootAlg.deps]);
+
+  while (queue.length > 0) {
+    const currId = queue.shift()!;
+    const currAlg = allAlgorithms.find((a) => a.id === currId);
+    if (!currAlg) continue;
+
+    for (const nextDep of currAlg.deps) {
+      if (!visited.has(nextDep)) {
+        visited.add(nextDep);
+        transitive.add(nextDep);
+        all.add(nextDep);
+        queue.push(nextDep);
+      }
+    }
+  }
+
+  return { directDeps: direct, transitiveDeps: transitive, allDeps: all };
+}
 
 // ─── Component ──────────────────────────────────────────────────────
 
@@ -170,8 +199,8 @@ const AlgorithmBlueprintSection = () => {
   const [detailAlg, setDetailAlg] = useState<{ id: string; level: number; name: string; deps: string[] } | null>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const highlighted = useMemo(
-    () => (selected ? collectAllDeps(selected) : new Set<string>()),
+  const { directDeps, transitiveDeps, allDeps } = useMemo(
+    () => analyzeDependencies(selected),
     [selected]
   );
 
@@ -215,346 +244,277 @@ const AlgorithmBlueprintSection = () => {
   };
 
   const categoryLabels: Record<string, string> = {
-    Cimientos: "Niveles 0–2",
-    "Motor Matemático": "Niveles 3–4",
-    "Lógica de Muestreo": "Niveles 5–6",
-    Descomposición: "Niveles 7–8",
-    "API Pública": "Niveles 9–11",
+    Cimientos: "NIVELES 00–02 // PRIMITIVAS",
+    "Motor Matemático": "NIVELES 03–04 // ARITMÉTICA POLINÓMICA",
+    "Lógica de Muestreo": "NIVELES 05–06 // GAUSSIAN & BALL SAMPLING",
+    Descomposición: "NIVELES 07–08 // TRUNCADO Y PISTAS",
+    "API Pública": "NIVELES 09–11 // ENLACE EXTERNO & CORE",
   };
 
   return (
-    <section id="blueprint" className="relative pb-16 z-10" ref={sectionRef}>
-      <div className="max-w-6xl">
-        {/* Header */}
-        <div className="text-left mb-12 pl-6 border-l-4 border-[#0e7490]">
-          <p className="text-sm font-semibold text-slate-400 tracking-[0.2em] uppercase mb-2">
-            Arquitectura Interna
-          </p>
-          <h2 className="text-3xl font-bold mb-4 text-white">
-            The Algorithm Blueprint
-          </h2>
-          <p className="text-slate-400 max-w-3xl text-base font-light">
-            Mapa completo de dependencias de ML-DSA (FIPS 204). Haz clic en cualquier
-            algoritmo para iluminar su cadena de dependencias.
-          </p>
-        </div>
+    <div id="blueprint" className="space-y-8" ref={sectionRef}>
+      {/* Header */}
+      <div className="space-y-2">
+        <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold block">
+          // FASE_06 // THE_ALGORITHM_BLUEPRINT
+        </span>
+        <h3 className="text-xl sm:text-2xl font-bold text-zinc-100">
+          The Algorithm Blueprint (FIPS 204)
+        </h3>
+        <p className="text-zinc-400 font-mono text-xs sm:text-sm max-w-3xl leading-relaxed">
+          Grafo de dependencias algorítmicas de ML-DSA. Selecciona cualquier nodo para trazar su cadena de llamadas descendentes resaltada en cian sobre el mapa monocromático.
+        </p>
+      </div>
 
-        {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-8">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar algoritmo..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
-            />
-          </div>
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+          <input
+            type="text"
+            placeholder="Buscar algoritmo o instrucción..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 font-mono text-xs rounded-none sm:rounded-sm bg-zinc-950 border border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-cyan-400 transition-colors"
+          />
+        </div>
+        <button
+          onClick={() => setTreeMode(!treeMode)}
+          className={`flex items-center gap-2 px-4 py-2 font-mono text-xs font-bold uppercase rounded-none sm:rounded-sm border transition-colors ${
+            treeMode
+              ? "bg-cyan-950/20 border-cyan-400 text-cyan-300"
+              : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+          }`}
+        >
+          <Boxes className="w-3.5 h-3.5" />
+          MODO ÁRBOL
+        </button>
+        {selected && (
           <button
-            onClick={() => setTreeMode(!treeMode)}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg border transition-all ${
-              treeMode
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "border-border text-muted-foreground hover:text-foreground"
-            }`}
+            onClick={() => setSelected(null)}
+            className="flex items-center gap-1.5 px-3 py-2 font-mono text-xs rounded-none sm:rounded-sm border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 transition-colors"
           >
-            <Boxes className="w-4 h-4" />
-            Modo Árbol
+            <X className="w-3.5 h-3.5" />
+            LIMPIAR SELECCIÓN
           </button>
-          {selected && (
-            <button
-              onClick={() => setSelected(null)}
-              className="px-4 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground transition-all"
-            >
-              Limpiar selección
-            </button>
-          )}
+        )}
+      </div>
+
+      {/* Dependency Cascade Status Banner */}
+      {selected && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 rounded-none sm:rounded-sm font-mono text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-cyan-400 animate-pulse" />
+            <span className="text-zinc-400">ÁRBOL ACTIVO:</span>
+            <span className="text-white font-bold">{allAlgorithms.find((a) => a.id === selected)?.name}</span>
+          </div>
+          <div className="flex items-center gap-4 text-[11px]">
+            <span className="text-cyan-300">
+              <strong className="text-white font-bold">{directDeps.size}</strong> directas (Grado 1)
+            </span>
+            <span className="text-cyan-400/80">
+              <strong className="text-white font-bold">{transitiveDeps.size}</strong> transitivas (Grado 2 → Nivel 0)
+            </span>
+            <span className="text-zinc-400">
+              Total: <strong className="text-white font-bold">{allDeps.size}</strong> nodos en cascada
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-6 items-start">
+        {/* ─── Minimap ─── */}
+        <div className="hidden lg:flex flex-col gap-1 sticky top-28 self-start w-10 shrink-0">
+          {levels.map((l) => {
+            const hasMatch =
+              !search.trim() || filteredLevels.some((fl) => fl.level === l.level);
+            return (
+              <button
+                key={l.level}
+                onClick={() => scrollToLevel(l.level)}
+                title={`Nivel ${l.level}: ${l.label}`}
+                className="group relative"
+              >
+                <div
+                  className={`w-8 h-5 rounded-none font-mono text-[9px] font-bold flex items-center justify-center border transition-colors ${
+                    hasMatch
+                      ? "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-400"
+                      : "bg-zinc-950/50 border-zinc-900 text-zinc-700 opacity-40"
+                  }`}
+                >
+                  {l.level}
+                </div>
+                <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap bg-zinc-900 border border-zinc-800 px-2 py-1 text-[10px] font-mono text-zinc-200 z-50">
+                  [{l.level}] {l.label}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex gap-6">
-          {/* ─── Minimap ─── */}
-          <div className="hidden lg:flex flex-col gap-1 sticky top-20 self-start w-12 shrink-0">
-            {levels.map((l) => {
-              const hasMatch =
-                !search.trim() || filteredLevels.some((fl) => fl.level === l.level);
-              return (
-                <button
-                  key={l.level}
-                  onClick={() => scrollToLevel(l.level)}
-                  title={`Nivel ${l.level}: ${l.label}`}
-                  className="group relative"
-                >
-                  <div
-                    className="w-8 h-5 rounded-sm transition-all flex items-center justify-center text-[9px] font-bold"
-                    style={{
-                      background: hasMatch ? levelBg(l.level) : "hsl(var(--muted) / 0.3)",
-                      border: `1px solid ${hasMatch ? levelBorder(l.level) : "hsl(var(--border))"}`,
-                      color: hasMatch ? levelColor(l.level) : "hsl(var(--muted-foreground))",
-                      opacity: hasMatch ? 1 : 0.4,
-                    }}
-                  >
-                    {l.level}
+        {/* ─── Main pipeline ─── */}
+        <div className="flex-1 space-y-4 min-w-0">
+          {filteredLevels.map((l, li) => {
+            const isCollapsed = collapsedLevels.has(l.level);
+            const prevCategory =
+              li > 0 ? filteredLevels[li - 1].category : null;
+            const showCategoryHeader = l.category !== prevCategory;
+            const LevelIcon = l.icon;
+
+            return (
+              <div key={l.level} id={`bp-level-${l.level}`} className="space-y-2">
+                {/* Category divider */}
+                {showCategoryHeader && (
+                  <div className="flex items-center gap-3 pt-6 pb-2 first:pt-0">
+                    <div className="h-px flex-1 bg-zinc-800" />
+                    <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-500 font-bold">
+                      {categoryLabels[l.category] || l.category}
+                    </span>
+                    <div className="h-px flex-1 bg-zinc-800" />
                   </div>
-                  <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap bg-card border border-border rounded px-2 py-1 text-[10px] text-foreground z-50 shadow-lg">
-                    {l.label}
+                )}
+
+                {/* Level header */}
+                <button
+                  onClick={() => treeMode && toggleLevel(l.level)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-none sm:rounded-sm border border-zinc-800 bg-zinc-950/90 transition-colors ${
+                    treeMode ? "cursor-pointer hover:border-zinc-700" : "cursor-default"
+                  }`}
+                >
+                  {treeMode && (
+                    isCollapsed
+                      ? <ChevronRight className="w-4 h-4 text-zinc-500" />
+                      : <ChevronDown className="w-4 h-4 text-zinc-500" />
+                  )}
+                  <div className="w-7 h-7 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-zinc-400">
+                    <LevelIcon className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="flex items-baseline gap-2 flex-1 text-left font-mono">
+                    <span className="text-xs font-bold text-zinc-400">
+                      [{String(l.level).padStart(2, "0")}]
+                    </span>
+                    <span className="text-xs font-semibold text-zinc-200 uppercase tracking-wide">
+                      {l.label}
+                    </span>
+                    <span className="text-[10px] text-zinc-600 ml-auto">
+                      {l.algorithms.length} algs
+                    </span>
                   </div>
                 </button>
-              );
-            })}
-          </div>
 
-          {/* ─── Main pipeline ─── */}
-          <div className="flex-1 space-y-2">
-            {filteredLevels.map((l, li) => {
-              const isCollapsed = collapsedLevels.has(l.level);
-              const prevCategory =
-                li > 0 ? filteredLevels[li - 1].category : null;
-              const showCategoryHeader = l.category !== prevCategory;
-              const LevelIcon = l.icon;
+                {/* Algorithm cards */}
+                {!(treeMode && isCollapsed) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pl-2 sm:pl-4">
+                    {l.algorithms.map((alg) => {
+                      const isSelected = selected === alg.id;
+                      const isDirect = directDeps.has(alg.id);
+                      const isTransitive = transitiveDeps.has(alg.id);
+                      const isDep = isDirect || isTransitive;
+                      const dimmed =
+                        selected !== null && !isSelected && !isDep;
+                      const visible = isAlgVisible(alg.id);
 
-              return (
-                <div key={l.level} id={`bp-level-${l.level}`}>
-                  {/* Category divider */}
-                  {showCategoryHeader && (
-                    <div className="flex items-center gap-3 mb-3 mt-6 first:mt-0">
-                      <div
-                        className="h-px flex-1"
-                        style={{ background: levelBorder(l.level) }}
-                      />
-                      <span
-                        className="text-[10px] font-semibold tracking-widest uppercase"
-                        style={{ color: levelColor(l.level) }}
-                      >
-                        {l.category} · {categoryLabels[l.category]}
-                      </span>
-                      <div
-                        className="h-px flex-1"
-                        style={{ background: levelBorder(l.level) }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Level header */}
-                  <button
-                    onClick={() => treeMode && toggleLevel(l.level)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all border ${
-                      treeMode ? "cursor-pointer hover:border-primary/20" : "cursor-default"
-                    }`}
-                    style={{
-                      background: levelBg(l.level),
-                      borderColor: levelBorder(l.level),
-                    }}
-                  >
-                    {treeMode && (
-                      isCollapsed
-                        ? <ChevronRight className="w-4 h-4" style={{ color: levelColor(l.level) }} />
-                        : <ChevronDown className="w-4 h-4" style={{ color: levelColor(l.level) }} />
-                    )}
-                    <div
-                      className="w-7 h-7 rounded-md flex items-center justify-center"
-                      style={{
-                        background: `hsl(${levelColorVar(l.level)} / 0.15)`,
-                      }}
-                    >
-                      <LevelIcon className="w-4 h-4" style={{ color: levelColor(l.level) }} />
-                    </div>
-                    <div className="flex items-baseline gap-2 flex-1 text-left">
-                      <span
-                        className="text-xs font-bold font-mono"
-                        style={{ color: levelColor(l.level) }}
-                      >
-                        N{l.level}
-                      </span>
-                      <span className="text-sm font-semibold text-foreground">{l.label}</span>
-                      <span className="text-[10px] text-muted-foreground ml-auto font-mono">
-                        {l.algorithms.length} alg{l.algorithms.length > 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  </button>
-
-                  {/* Algorithm cards */}
-                  {!(treeMode && isCollapsed) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2 ml-4 lg:ml-6">
-                      {l.algorithms.map((alg) => {
-                        const isSelected = selected === alg.id;
-                        const isDep = highlighted.has(alg.id);
-                        const dimmed =
-                          selected !== null && !isSelected && !isDep;
-                        const visible = isAlgVisible(alg.id);
-
-                        const shakeLabel = alg.shakeException;
-
-                        return (
-                          <button
-                            key={alg.id}
-                            onClick={() =>
-                              setSelected(selected === alg.id ? null : alg.id)
-                            }
-                            className="text-left transition-all duration-300"
-                            style={{
-                              opacity: dimmed ? 0.25 : visible ? 1 : 0.15,
-                              transform: dimmed ? "scale(0.97)" : "scale(1)",
-                            }}
-                          >
-                            <div
-                              className="rounded-xl p-3 border backdrop-blur-sm transition-all duration-300"
-                              style={{
-                                background: isSelected
-                                  ? `hsl(${levelColorVar(l.level)} / 0.12)`
-                                  : isDep
-                                  ? `hsl(${levelColorVar(l.level)} / 0.06)`
-                                  : "hsl(var(--card) / 0.6)",
-                                borderColor: isSelected
-                                  ? levelColor(l.level)
-                                  : isDep
-                                  ? levelBorder(l.level)
-                                  : "hsl(var(--border))",
-                                boxShadow: isSelected
-                                  ? levelGlow(l.level)
-                                  : isDep
-                                  ? `0 0 12px hsl(${levelColorVar(l.level)} / 0.08)`
-                                  : "none",
-                              }}
+                      return (
+                        <button
+                          key={alg.id}
+                          onClick={() =>
+                            setSelected(selected === alg.id ? null : alg.id)
+                          }
+                          className={`text-left p-4 sm:p-5 border rounded-none sm:rounded-sm font-mono transition-all duration-200 flex flex-col justify-between ${
+                            isSelected
+                              ? "border-white bg-cyan-950/60 text-white shadow-[0_0_20px_rgba(34,211,238,0.25)] ring-1 ring-white"
+                              : isDirect
+                              ? "border-cyan-400 bg-cyan-950/30 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+                              : isTransitive
+                              ? "border-cyan-500/40 bg-cyan-950/10 text-cyan-400/90"
+                              : dimmed
+                              ? "opacity-25 border-zinc-900 bg-zinc-950/40 text-zinc-600"
+                              : visible
+                              ? "border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900/50"
+                              : "opacity-15 border-zinc-900 bg-zinc-950 text-zinc-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span
+                              className={`text-[10px] font-bold px-1.5 py-0.5 border ${
+                                isSelected
+                                  ? "border-white bg-white/20 text-white"
+                                  : isDirect
+                                  ? "border-cyan-400/80 bg-cyan-950/80 text-cyan-200"
+                                  : isTransitive
+                                  ? "border-cyan-500/50 bg-cyan-950/40 text-cyan-400"
+                                  : "border-zinc-800 bg-zinc-900 text-zinc-400"
+                              }`}
                             >
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span
-                                  className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"
-                                  style={{
-                                    background: `hsl(${levelColorVar(l.level)} / 0.12)`,
-                                    color: levelColor(l.level),
-                                  }}
-                                >
-                                  {alg.algNum}
-                                </span>
-                                <div className="flex items-center gap-1.5">
-                                  <span
-                                    className="text-[9px] font-mono"
-                                    style={{ color: levelColor(l.level) }}
-                                  >
-                                    Nivel {l.level}
-                                  </span>
-                                  <span
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDetailAlg({ id: alg.id, level: l.level, name: alg.name, deps: alg.deps });
-                                    }}
-                                    className="text-[9px] font-mono px-1.5 py-0.5 rounded cursor-pointer transition-all hover:scale-110"
-                                    style={{
-                                      background: `hsl(${levelColorVar(l.level)} / 0.15)`,
-                                      color: levelColor(l.level),
-                                    }}
-                                    title="Ver detalles del algoritmo"
-                                  >
-                                    ⓘ
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="text-sm font-semibold text-foreground leading-tight">
-                                {alg.name}
-                              </p>
-
-                              {/* Global SHAKE badge */}
-                              {shakeLabel && (
-                                <div className="flex items-center gap-1 mt-1.5">
-                                  <Zap className="w-2.5 h-2.5 text-amber-500/70" />
-                                  <span className="text-[8px] font-mono text-amber-500/70">
-                                    {shakeLabel}
-                                  </span>
-                                </div>
-                              )}
-
-                              {alg.deps.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {alg.deps.map((dep) => {
-                                    const depAlg = allAlgorithms.find(
-                                      (a) => a.id === dep
-                                    );
-                                    const depIsDep =
-                                      isSelected && highlighted.has(dep);
-                                    return (
-                                      <span
-                                        key={dep}
-                                        className="text-[9px] font-mono px-1.5 py-0.5 rounded border transition-all"
-                                        style={{
-                                          borderColor: depIsDep
-                                            ? `hsl(${levelColorVar(depAlg?.level ?? 0)} / 0.5)`
-                                            : "hsl(var(--border))",
-                                          background: depIsDep
-                                            ? `hsl(${levelColorVar(depAlg?.level ?? 0)} / 0.1)`
-                                            : "transparent",
-                                          color: depIsDep
-                                            ? `hsl(${levelColorVar(depAlg?.level ?? 0)})`
-                                            : "hsl(var(--muted-foreground))",
-                                        }}
-                                      >
-                                        {depAlg?.name ?? dep}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                              {alg.algNum}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-zinc-500">
+                                L{l.level}
+                              </span>
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailAlg({ id: alg.id, level: l.level, name: alg.name, deps: alg.deps });
+                                }}
+                                className="text-[10px] px-1.5 py-0.2 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-cyan-400 hover:text-cyan-300 cursor-pointer"
+                                title="Ver pseudocódigo y detalles"
+                              >
+                                ⓘ
+                              </span>
                             </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                          </div>
 
-                  {/* Pipeline connector */}
-                  {li < filteredLevels.length - 1 && !(treeMode && isCollapsed) && (
-                    <div className="flex justify-center py-1">
-                      <div
-                        className="w-px h-4"
-                        style={{
-                          background: `linear-gradient(to bottom, ${levelBorder(l.level)}, ${levelBorder(filteredLevels[li + 1].level)})`,
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                          <div>
+                            <p className="text-xs sm:text-sm font-bold leading-tight mb-1">
+                              {alg.name}
+                            </p>
+                            {isSelected && (
+                              <span className="text-[9px] font-mono text-cyan-300 font-bold uppercase tracking-wider block">
+                                [ NODO_SELECCIONADO ]
+                              </span>
+                            )}
+                            {isDirect && (
+                              <span className="text-[9px] font-mono text-cyan-300 uppercase tracking-wider block">
+                                [ DEP_DIRECTA · G1 ]
+                              </span>
+                            )}
+                            {isTransitive && (
+                              <span className="text-[9px] font-mono text-cyan-400/80 uppercase tracking-wider block">
+                                [ DEP_TRANSITIVA ]
+                              </span>
+                            )}
+                          </div>
 
-            {filteredLevels.length === 0 && (
-              <div className="text-center py-16 text-muted-foreground text-sm">
-                No se encontraron algoritmos para «{search}»
+                          {/* SHAKE exception badge */}
+                          {alg.shakeException && (
+                            <div className="flex items-center gap-1 mt-auto pt-2 text-[9px] text-zinc-500">
+                              <Zap className="w-2.5 h-2.5 text-cyan-400" />
+                              <span>{alg.shakeException}</span>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="mt-12 flex flex-wrap justify-center gap-3">
-          {["Cimientos", "Motor Matemático", "Lógica de Muestreo", "Descomposición", "API Pública"].map(
-            (cat, i) => {
-              const refLevel = [0, 3, 5, 7, 9][i];
-              return (
-                <div
-                  key={cat}
-                  className="flex items-center gap-1.5 text-[10px] font-medium"
-                  style={{ color: levelColor(refLevel) }}
-                >
-                  <div
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ background: levelColor(refLevel) }}
-                  />
-                  {cat}
-                </div>
-              );
-            }
-          )}
+            );
+          })}
         </div>
       </div>
 
-      <AlgorithmDetailSheet
-        algorithmId={detailAlg?.id ?? null}
-        algorithmName={detailAlg?.name}
-        level={detailAlg?.level ?? 0}
-        deps={detailAlg?.deps ?? []}
-        onClose={() => setDetailAlg(null)}
-      />
-    </section>
+      {/* Alg Detail Sheet */}
+      {detailAlg && (
+        <AlgorithmDetailSheet
+          algorithmId={detailAlg.id}
+          algorithmName={detailAlg.name}
+          level={detailAlg.level}
+          deps={detailAlg.deps}
+          onClose={() => setDetailAlg(null)}
+        />
+      )}
+    </div>
   );
 };
 

@@ -775,7 +775,9 @@ const DitherVeil = ({
                     viewUniforms.uMatte.value = edge.matte;
                     viewUniforms.uKey.value = edge.plain ? 1 : 0;
                 }
-            } catch { }
+            } catch {
+                /* ignore error on offscreen canvas sampling */
+            }
             introStart = performance.now();
             wake();
         };
