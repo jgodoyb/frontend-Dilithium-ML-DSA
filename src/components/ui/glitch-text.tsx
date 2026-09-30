@@ -21,37 +21,36 @@ interface CustomCSSProperties extends CSSProperties {
 
 export const GlitchText: FC<GlitchTextProps> = ({
   children,
-  speed = 0.5,
+  speed = 1,
   enableShadows = true,
   enableOnHover = false,
   className = '',
-  afterShadowColor = '#0e7490',
-  beforeShadowColor = '#22d3ee',
+  afterShadowColor = 'rgba(14, 165, 233, 0.85)',
+  beforeShadowColor = 'rgba(168, 85, 247, 0.85)',
 }) => {
   const inlineStyles: CustomCSSProperties = {
-    '--after-duration': `${speed * 3}s`,
-    '--before-duration': `${speed * 2}s`,
-    '--after-shadow': enableShadows ? `-3px 0 ${afterShadowColor}` : 'none',
-    '--before-shadow': enableShadows ? `3px 0 ${beforeShadowColor}` : 'none',
+    '--after-duration': `${Math.max(2, speed * 4.2)}s`,
+    '--before-duration': `${Math.max(1.6, speed * 3.4)}s`,
+    '--after-shadow': enableShadows ? `-2px 0 1px ${afterShadowColor}` : 'none',
+    '--before-shadow': enableShadows ? `2px 0 1px ${beforeShadowColor}` : 'none',
   };
 
-  const baseClasses =
-    'relative select-none inline-block';
+  const baseClasses = 'relative select-none inline-block';
 
   const pseudoClasses = !enableOnHover
-    ? 'after:content-[attr(data-text)] after:absolute after:top-0 after:left-[3px] after:w-full after:h-full after:pointer-events-none after:text-zinc-100 after:bg-black/90 after:overflow-hidden after:[clip-path:inset(0_0_0_0)] after:[text-shadow:var(--after-shadow)] after:animate-glitch-after ' +
-      'before:content-[attr(data-text)] before:absolute before:top-0 before:left-[-3px] before:w-full before:h-full before:pointer-events-none before:text-zinc-100 before:bg-black/90 before:overflow-hidden before:[clip-path:inset(0_0_0_0)] before:[text-shadow:var(--before-shadow)] before:animate-glitch-before'
-    : "after:content-[''] after:absolute after:top-0 after:left-[3px] after:w-full after:h-full after:pointer-events-none after:text-zinc-100 after:bg-black/90 after:overflow-hidden after:[clip-path:inset(0_0_0_0)] after:opacity-0 " +
-      "before:content-[''] before:absolute before:top-0 before:left-[-3px] before:w-full before:h-full before:pointer-events-none before:text-zinc-100 before:bg-black/90 before:overflow-hidden before:[clip-path:inset(0_0_0_0)] before:opacity-0 " +
-      'hover:after:content-[attr(data-text)] hover:after:opacity-100 hover:after:[text-shadow:var(--after-shadow)] hover:after:animate-glitch-after ' +
-      'hover:before:content-[attr(data-text)] hover:before:opacity-100 hover:before:[text-shadow:var(--before-shadow)] hover:before:animate-glitch-before';
+    ? 'after:content-[attr(data-text)] after:absolute after:inset-0 after:w-full after:h-full after:pointer-events-none after:text-inherit after:bg-transparent after:overflow-hidden after:[text-shadow:var(--after-shadow)] after:animate-glitch-after ' +
+      'before:content-[attr(data-text)] before:absolute before:inset-0 before:w-full before:h-full before:pointer-events-none before:text-inherit before:bg-transparent before:overflow-hidden before:[text-shadow:var(--before-shadow)] before:animate-glitch-before'
+    : "after:content-[''] after:absolute after:inset-0 after:w-full after:h-full after:pointer-events-none after:text-inherit after:bg-transparent after:overflow-hidden after:opacity-0 " +
+      "before:content-[''] before:absolute before:inset-0 before:w-full before:h-full before:pointer-events-none before:text-inherit before:bg-transparent before:overflow-hidden before:opacity-0 " +
+      'hover:after:content-[attr(data-text)] hover:after:[text-shadow:var(--after-shadow)] hover:after:animate-glitch-after ' +
+      'hover:before:content-[attr(data-text)] hover:before:[text-shadow:var(--before-shadow)] hover:before:animate-glitch-before';
 
   const combinedClasses = `${baseClasses} ${pseudoClasses} ${className}`;
 
   return (
-    <div style={inlineStyles} data-text={children} className={combinedClasses}>
+    <span style={inlineStyles} data-text={children} className={combinedClasses}>
       {children}
-    </div>
+    </span>
   );
 };
 
