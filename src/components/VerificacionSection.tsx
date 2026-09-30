@@ -1,193 +1,155 @@
 import { useState } from "react";
 import KaTeX from "./KaTeX";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  PackageOpen, Fingerprint, Grid3X3, Target, Zap, Lightbulb, ShieldCheck, ArrowRight, Info
+  PackageOpen, Fingerprint, Grid3X3, Target, Zap, Lightbulb, ShieldCheck, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { motion } from "framer-motion";
 
 const verificacionSteps = [
   {
-    num: 0, title: "Desempaquetado (Decoding)", icon: PackageOpen,
+    num: 0, numStr: "00", title: "Decodificación (Unpack)", icon: PackageOpen,
     description: "El verificador recibe la clave pública (pk) y la firma (σ). Se extraen las semillas, los polinomios de respuesta y el vector de pistas (hint).",
     formula: "(pk, \\sigma) \\rightarrow (\\rho, \\mathbf{t}_1, \\tilde{c}, \\mathbf{z}, \\mathbf{h})",
-    detail: "pk contiene ρ y t₁. σ contiene el hash del desafío c̃, la respuesta z y el hint h. Se validan los tamaños y rangos de cada componente.",
+    detail: "pk contiene ρ y t₁. σ contiene el hash del desafío c̃, la respuesta z y el hint h. Se validan los tamaños y rangos de cada componente binario.",
   },
   {
-    num: 1, title: "Huella y Contexto", icon: Fingerprint,
-    description: "Se genera tr a partir de la clave pública para asegurar el contexto. Luego mu vincula el mensaje M directamente a la identidad del firmante.",
-    formula: "tr = \\text{H}(pk, 64), \\quad \\mu = \\text{H}(tr \\;\\|\\; M, 64)",
-    detail: "tr (64 bytes) es un resumen de pk. mu (64 bytes) es el 'digest' del mensaje que será verificado. Se utiliza SHAKE-256.",
+    num: 1, numStr: "01", title: "Contexto & Huella μ", icon: Fingerprint,
+    description: "Se computa tr a partir de la clave pública para asegurar el contexto institucional. Luego μ vincula el mensaje M directamente a la identidad.",
+    formula: "tr = \\text{SHAKE-256}(pk, \\; 64), \\quad \\mu = \\text{SHAKE-256}(tr \\;\\|\\; M, \\; 64)",
+    detail: "tr (64 bytes) es un resumen determinista de pk. μ (64 bytes) es el digest final del mensaje que será verificado.",
   },
   {
-    num: 2, title: "Expansión Matrix A", icon: Grid3X3,
-    description: "Bob reconstruye la matriz pública A a partir de la semilla ρ. Esta matriz es idéntica a la que Alice usó para firmar.",
+    num: 2, numStr: "02", title: "Expansión Matriz A", icon: Grid3X3,
+    description: "Bob reconstruye la matriz pública A a partir de la semilla ρ. Esta matriz es idéntica en memoria a la que Alice utilizó para firmar.",
     formula: "\\hat{\\mathbf{A}} = \\text{ExpandA}(\\rho) \\in R_q^{k \\times l}",
-    detail: "La expansión se realiza en dominio NTT para permitir cálculos eficientes. Para ML-DSA-65, A es una matriz de 6x5 polinomios.",
+    detail: "La expansión se realiza en dominio NTT para permitir cálculos asintóticos eficientes. Para ML-DSA-65, A es de 6x5 polinomios.",
   },
   {
-    num: 3, title: "Polinomio c", icon: Target,
+    num: 3, numStr: "03", title: "Polinomio Desafío c", icon: Target,
     description: "Se expande el hash del desafío c̃ almacenado en la firma para recuperar el polinomio disperso c completo.",
-    formula: "c = \\text{SampleInBall}(\\tilde{c}, \\tau=49)",
-    detail: "SampleInBall coloca exactamente 49 coeficientes ±1 en las posiciones determinadas por c̃. El resto de coeficientes son zero.",
+    formula: "c = \\text{SampleInBall}(\\tilde{c}, \\; \\tau=49)",
+    detail: "SampleInBall coloca exactamente 49 coeficientes ±1 en las posiciones determinadas por c̃. Los 207 coeficientes restantes son nulos.",
   },
   {
-    num: 4, title: "Reconstrucción w'", icon: Zap,
-    description: "Bob calcula una aproximación w'. Al restar el componente secreto (vía t₁), se obtiene un valor cercano al compromiso original w.",
+    num: 4, numStr: "04", title: "Aproximación w'", icon: Zap,
+    description: "Bob calcula una aproximación w'. Al restar el componente público t₁, se cancelan parcialmente los términos secretos.",
     formula: "\\mathbf{w}' = \\text{Az} - c \\mathbf{t}_1 2^d",
-    detail: "Bob no conoce s₁, pero z = y + cs₁. Al operar con pk, los términos se cancelan parcialmente: Az - ct ≈ Ay ≈ w.",
+    detail: "Bob desconoce s₁, pero z = y + cs₁. Al operar con pk, los términos coinciden con Az - ct ≈ Ay ≈ w.",
   },
   {
-    num: 5, title: "Recuperación w₁'", icon: Lightbulb,
-    description: "Se aplica el hint h sobre la aproximación w' para recuperar exactamente los bits altos w₁ que Alice utilizó originalmente.",
-    formula: "\\mathbf{w}_1' = \\text{UseHint}(\\mathbf{h}, \\mathbf{w}', 2\\gamma_2)",
-    detail: "El hint indica dónde el acarreo de bits bajos afectó a los altos. Es crucial para que Bob obtenga el mismo w₁ que Alice.",
+    num: 5, numStr: "05", title: "Recuperación w₁'", icon: Lightbulb,
+    description: "Se aplica el vector de pistas h sobre la aproximación w' para recuperar con exactitud algebraica los bits altos w₁ originales.",
+    formula: "\\mathbf{w}_1' = \\text{UseHint}(\\mathbf{h}, \\; \\mathbf{w}', \\; 2\\gamma_2)",
+    detail: "El hint corrige cualquier discrepancia de redondeo introducida por el error residual t₀.",
   },
   {
-    num: 6, title: "Validación de Integridad", icon: ShieldCheck,
-    description: "Paso final: se verifica que la respuesta z sea corta (seguridad) y que el nuevo hash c̃' coincida con el recibido (autenticidad).",
+    num: 6, numStr: "06", title: "Verificación de Integridad", icon: ShieldCheck,
+    description: "Validación definitiva: se verifica que la norma de z sea acotada (seguridad) y que el hash regenerado c̃' coincida con el recibido.",
     formula: "\\text{Check 1: } \\|\\mathbf{z}\\|_\\infty < \\gamma_1 - \\beta",
-    extraFormula: "\\text{Check 2: } \\tilde{c} = \\text{H}(\\mu \\;\\|\\; \\text{PackW1}(\\mathbf{w}_1'))",
-    detail: "Si ambas condiciones se cumplen simultáneamente, la firma es matemáticamente válida y el documento es auténtico.",
+    extraFormula: "\\text{Check 2: } \\tilde{c} = \\text{SHAKE-256}(\\mu \\;\\|\\; \\text{PackW1}(\\mathbf{w}_1'))",
+    detail: "Si ambas condiciones se satisfacen, la firma es matemáticamente genuina y el documento queda autenticado con garantía post-cuántica.",
   },
 ];
 
 const VerificacionSection = () => {
   const [activeStep, setActiveStep] = useState(0);
   const step = verificacionSteps[activeStep];
+  const StepIcon = step.icon;
 
   return (
-    <section id="verificacion" className="relative pb-16 z-10">
-      <div className="max-w-6xl">
-        <div className="text-left mb-12 pl-6 border-l-4 border-emerald-500">
-          <p className="text-sm font-semibold text-emerald-500 tracking-[0.2em] uppercase mb-2">Fase 3 · Verificación</p>
-          <h2 className="text-3xl font-bold mb-4 text-white">Proceso de Verificación</h2>
-          <p className="text-slate-400 max-w-3xl text-base font-light">
-            Bob recibe la Clave Pública y la Firma. Utiliza el{" "}
-            <span className="text-white font-semibold">Hint</span> para reconstruir los bits altos
-            y validar que la firma fue generada correctamente por el dueño de la clave.
-          </p>
-        </div>
+    <div id="verificacion" className="space-y-16">
+      {/* Header */}
+      <div className="space-y-2">
+        <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold block">
+          // FASE_05 // ML-DSA.VERIFY
+        </span>
+        <h3 className="text-xl sm:text-2xl font-bold text-zinc-100 font-mono">
+          Protocolo de Verificación (ML-DSA.Verify)
+        </h3>
+        <p className="text-zinc-400 font-mono text-xs sm:text-sm max-w-3xl leading-relaxed">
+          Bob recibe la Clave Pública y la Firma. Emplea el vector de pistas (Hint) para recuperar los bits altos originales <KaTeX math="\mathbf{w}_1" /> y certificar matemáticamente la validez del documento.
+        </p>
+      </div>
 
-        {/* Step timeline */}
-        <div className="flex flex-wrap justify-center gap-2 mb-10">
-          {verificacionSteps.map((s, i) => (
+      {/* Unified Stepper Navigation (Matching FirmaSection) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        {verificacionSteps.map((s, i) => {
+          const isActive = activeStep === i;
+          return (
             <button
               key={s.num}
               onClick={() => setActiveStep(i)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all border ${
-                activeStep === i
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
-                  : "border-border text-muted-foreground hover:text-foreground hover:border-emerald-500/20"
+              className={`p-3.5 text-left font-mono border rounded-none sm:rounded-sm transition-colors flex flex-col justify-between min-h-[72px] ${
+                isActive
+                  ? "border-cyan-400 bg-cyan-950/20 text-cyan-300 font-bold"
+                  : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
               }`}
             >
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                activeStep === i ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"
-              }`}>
-                {s.num}
+              <div className="flex items-center justify-between w-full mb-1">
+                <span className="text-[10px] tracking-wider">[{s.numStr}]</span>
+              </div>
+              <span className="text-xs font-semibold leading-tight line-clamp-2">
+                {s.title}
               </span>
-              <span className="hidden sm:inline">{s.title}</span>
             </button>
-          ))}
+          );
+        })}
+      </div>
+
+      {/* Terminal Display Panel */}
+      <div className="bg-zinc-950 border border-zinc-800 p-8 sm:p-10 rounded-none sm:rounded-sm space-y-8">
+        {/* Terminal Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 border border-cyan-500/40 bg-cyan-950/20 text-cyan-400 flex items-center justify-center font-mono">
+              <StepIcon className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-mono text-[10px] uppercase tracking-widest font-bold text-cyan-400 block mb-0.5">
+                // VERIFY_PASO [{step.numStr}]
+              </span>
+              <h4 className="text-xl font-bold font-mono text-zinc-100">{step.title}</h4>
+            </div>
+          </div>
+
+          {/* Stepper Controls */}
+          <div className="flex items-center gap-2 font-mono text-xs">
+            <button
+              onClick={() => setActiveStep((prev) => Math.max(0, prev - 1))}
+              disabled={activeStep === 0}
+              className="px-3.5 py-2 border border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" /> ANTERIOR
+            </button>
+            <button
+              onClick={() => setActiveStep((prev) => Math.min(verificacionSteps.length - 1, prev + 1))}
+              disabled={activeStep === verificacionSteps.length - 1}
+              className="px-3.5 py-2 border border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              SIGUIENTE <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        <motion.div
-          key={activeStep}
-          initial={{ opacity: 0, scale: 0.98, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Card className="pro-card border-emerald-500/10 shadow-emerald-500/5">
-            <CardHeader className="pb-4 border-b border-border/50">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                  <step.icon className="w-6 h-6 text-emerald-500" />
-                </div>
-                <div>
-                  <span className="text-xs font-medium text-emerald-500 font-mono tracking-tighter">
-                    VERIFICATION_PROTOCOL_0{step.num}
-                  </span>
-                  <CardTitle className="text-2xl text-foreground font-bold">{step.title}</CardTitle>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-8 space-y-8">
-              <div className="flex flex-col md:flex-row gap-8 items-start">
-                <div className="flex-1 space-y-6">
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-emerald-500 flex items-center gap-2">
-                       <Info className="w-4 h-4" /> Procedimiento
-                    </h3>
-                    <p className="text-base text-muted-foreground leading-relaxed">{step.description}</p>
-                  </div>
+        {/* Content */}
+        <p className="text-zinc-300 font-mono text-sm leading-relaxed">{step.description}</p>
 
-                  <div className="bg-muted/10 border border-emerald-500/10 rounded-2xl p-6">
-                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500/60 mb-4 font-mono">
-                      Logic_Definition
-                    </h3>
-                    <p className="text-sm text-foreground/80 leading-relaxed italic">
-                      "{step.detail}"
-                    </p>
-                  </div>
-                </div>
+        {/* Academic KaTeX block */}
+        <div className="bg-black border border-zinc-800 border-l-2 border-l-cyan-400 p-8 sm:p-10 overflow-x-auto text-center rounded-none sm:rounded-sm space-y-4">
+          <KaTeX math={step.formula} display />
+          {step.extraFormula && (
+            <div className="pt-4 border-t border-zinc-900">
+              <KaTeX math={step.extraFormula} display />
+            </div>
+          )}
+        </div>
 
-                <div className="flex-1 w-full space-y-4">
-                  <div className="bg-background/40 backdrop-blur-md rounded-2xl p-8 text-center space-y-6 border border-border shadow-inner relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <step.icon className="w-20 h-20" />
-                    </div>
-                    <KaTeX math={step.formula} display />
-                    {step.extraFormula && (
-                      <div className="pt-4 border-t border-border/50">
-                        <KaTeX math={step.extraFormula} display />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex justify-center">
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/10 text-[10px] font-mono text-emerald-500/70">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Status: Computing Step {step.num}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center pt-6 border-t border-border/50">
-                <button
-                  onClick={() => setActiveStep(Math.max(0, activeStep - 1))}
-                  disabled={activeStep === 0}
-                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-emerald-500 disabled:opacity-30 transition-all group"
-                >
-                  <ArrowRight className="w-4 h-4 rotate-180 group-hover:-translate-x-1 transition-transform" /> 
-                  Anterior
-                </button>
-                
-                <div className="flex gap-1">
-                  {verificacionSteps.map((_, i) => (
-                    <div 
-                      key={i} 
-                      className={`h-1 rounded-full transition-all duration-500 ${
-                        i === activeStep ? "w-8 bg-emerald-500" : "w-2 bg-muted-foreground/20"
-                      }`} 
-                    />
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => setActiveStep(Math.min(verificacionSteps.length - 1, activeStep + 1))}
-                  disabled={activeStep === verificacionSteps.length - 1}
-                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-emerald-500 disabled:opacity-30 transition-all group"
-                >
-                  Siguiente 
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        {/* Detail Note */}
+        <div className="p-6 sm:p-8 bg-zinc-900/60 border border-zinc-800 rounded-none sm:rounded-sm font-mono text-xs text-zinc-400">
+          <span className="text-zinc-200 font-bold block mb-1.5">// RIGOR_DE_VERIFICACIÓN</span>
+          <p className="leading-relaxed">{step.detail}</p>
+        </div>
       </div>
-    </section>
+    </div>
   );
 };
 

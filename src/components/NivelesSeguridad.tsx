@@ -13,7 +13,6 @@ const levels = [
     name: "ML-DSA-44",
     category: "Categoría 2",
     equiv: "AES-128",
-    cssVar: "--level-2",
     q: 8380417, d: 13,
     k: 4, l: 4, eta: 2, tau: 39,
     gamma1: "2^{17}", gamma2: "(q-1)/88", omega: 80,
@@ -23,7 +22,6 @@ const levels = [
     name: "ML-DSA-65",
     category: "Categoría 3",
     equiv: "AES-192",
-    cssVar: "--level-3",
     q: 8380417, d: 13,
     k: 6, l: 5, eta: 4, tau: 49,
     gamma1: "2^{19}", gamma2: "(q-1)/32", omega: 55,
@@ -33,7 +31,6 @@ const levels = [
     name: "ML-DSA-87",
     category: "Categoría 5",
     equiv: "AES-256",
-    cssVar: "--level-5",
     q: 8380417, d: 13,
     k: 8, l: 7, eta: 2, tau: 60,
     gamma1: "2^{19}", gamma2: "(q-1)/32", omega: 75,
@@ -137,109 +134,113 @@ const NivelesSeguridad = () => {
   const [hovered, setHovered] = useState<number | null>(null);
 
   return (
-    <section id="niveles" className="relative pb-24 z-10 bg-transparent">
-      <div className="max-w-5xl">
-        <div className="text-left mb-12 sm:mb-16 pl-3 sm:pl-6">
-          <p className="text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase mb-3 sm:mb-4 text-[#0e7490]">
-            FIPS 204 · Especificaciones
-          </p>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-white">
-            Niveles de Seguridad Oficiales
-          </h2>
-          <p className="text-slate-400 max-w-3xl font-light text-sm sm:text-lg leading-relaxed">
-            Comparativa completa según el estándar NIST FIPS 204: parámetros internos,
-            tamaños de clave y categoría de seguridad.
-          </p>
-        </div>
+    <div id="niveles" className="space-y-16">
+      {/* Intro Header */}
+      <div className="space-y-2">
+        <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold block">
+          // MATRIZ_COMPARATIVA
+        </span>
+        <h3 className="text-xl sm:text-2xl font-bold text-zinc-100 font-mono">
+          Niveles de Seguridad Oficiales
+        </h3>
+        <p className="text-zinc-400 font-mono text-xs sm:text-sm leading-relaxed max-w-3xl">
+          Comparativa técnica completa según el estándar NIST FIPS 204: parámetros algebraicos, dimensiones vectoriales, tamaños binarios y categorización de seguridad.
+        </p>
+      </div>
 
-        {/* Comparative Table */}
-        <div className="bg-[#030303] border-y border-white/10 md:border md:shadow-2xl mb-12 overflow-x-auto w-full">
-          <div className="min-w-[560px]">
-            {/* Header */}
-            <div className="grid grid-cols-4 text-xs font-bold uppercase tracking-[0.1em] border-b border-white/20 bg-[#0a0a0a]">
-              <div className="p-4 md:p-6 text-slate-400">Parámetro</div>
-              {levels.map((l, i) => (
-                <div
-                  key={l.name}
-                  className="p-4 md:p-6 text-center transition-colors duration-200 border-l border-white/5 font-mono"
-                  style={{
-                    color: hovered === i ? "#0e7490" : "#ffffff",
-                    background: hovered === i ? "rgba(14, 116, 144, 0.1)" : "transparent",
-                  }}
-                  onMouseEnter={() => setHovered(i)}
-                  onMouseLeave={() => setHovered(null)}
-                >
-                  {l.name}
-                </div>
-              ))}
-            </div>
-
-            {/* Rows */}
-            {rows.map((row, ri) => (
+      {/* Comparative Table */}
+      <div className="bg-zinc-950 border border-zinc-800 rounded-none sm:rounded-sm overflow-x-auto w-full">
+        <div className="min-w-[620px]">
+          {/* Header */}
+          <div className="grid grid-cols-4 text-xs font-mono font-bold uppercase tracking-wider border-b border-zinc-800 bg-zinc-900/80">
+            <div className="p-4 sm:p-5 text-zinc-400">PARÁMETRO</div>
+            {levels.map((l, i) => (
               <div
-                key={ri}
-                className="grid grid-cols-4 border-b border-white/5 last:border-0 text-xs sm:text-sm"
+                key={l.name}
+                className={`p-4 sm:p-5 text-center transition-colors border-l border-zinc-800 font-mono cursor-default ${
+                  hovered === i ? "text-cyan-300 bg-cyan-950/20" : "text-zinc-200"
+                }`}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
               >
-                <div className="p-3 sm:p-4 flex items-center gap-2 text-slate-300 font-semibold">
-                  <row.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 shrink-0" />
-                  <span>{row.label}</span>
-                </div>
-                {row.values.map((v, ci) => (
-                  <div
-                    key={ci}
-                    className="p-3 sm:p-4 text-center font-mono text-xs sm:text-sm transition-all duration-200 border-l border-white/5"
-                    style={{
-                      color: hovered === ci ? "#0e7490" : "#94a3b8",
-                      background: hovered === ci ? "rgba(14, 116, 144, 0.1)" : "transparent",
-                    }}
-                    onMouseEnter={() => setHovered(ci)}
-                    onMouseLeave={() => setHovered(null)}
-                  >
-                    {row.isFormula ? <KaTeX math={v} /> : v}
-                  </div>
-                ))}
+                {l.name}
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Glossary */}
-        <div className="px-3 sm:px-6 md:px-0">
-          <div className="border-b-2 border-white/10 pb-4 mb-6">
-            <h3 className="text-white text-2xl font-bold">
-              Glosario de Parámetros
-            </h3>
-            <p className="text-sm text-slate-400 mt-2 font-light">
-              Significado oficial y rol de cada parámetro en el esquema ML-DSA.
-            </p>
-          </div>
-          <div>
-            <Accordion type="multiple" className="w-full">
-              {glossary.map((item) => (
-                <AccordionItem key={item.id} value={item.id} className="border-white/10">
-                  <AccordionTrigger className="hover:no-underline py-4 text-left">
-                    <div className="flex items-center gap-3">
-                      <item.icon className="w-5 h-5 text-[#0e7490] shrink-0" />
-                      <span className="text-base font-semibold text-slate-200">{item.title}</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pb-6">
-                    <div className="pl-8 space-y-4">
-                      <div className="bg-white/5 border border-white/10 rounded p-4 mb-2 inline-block">
-                        <KaTeX math={item.formula} />
-                      </div>
-                      <p className="text-slate-400 font-light leading-relaxed max-w-4xl text-base">
-                        {item.content}
-                      </p>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
+          {/* Rows */}
+          {rows.map((row, ri) => (
+            <div
+              key={ri}
+              className="grid grid-cols-4 border-b border-zinc-800/80 last:border-0 text-xs font-mono"
+            >
+              <div className="p-4 flex items-center gap-2 text-zinc-300 font-semibold bg-zinc-950">
+                <row.icon className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <span>{row.label}</span>
+              </div>
+              {row.values.map((v, ci) => (
+                <div
+                  key={ci}
+                  className={`p-4 text-center font-mono transition-colors border-l border-zinc-800 ${
+                    hovered === ci
+                      ? "text-cyan-300 bg-cyan-950/20"
+                      : row.isSecurity
+                      ? "text-cyan-400 font-bold"
+                      : "text-zinc-400"
+                  }`}
+                  onMouseEnter={() => setHovered(ci)}
+                  onMouseLeave={() => setHovered(null)}
+                >
+                  {row.isFormula ? <KaTeX math={v} /> : v}
+                </div>
               ))}
-            </Accordion>
-          </div>
+            </div>
+          ))}
         </div>
       </div>
-    </section>
+
+      {/* Glossary */}
+      <div className="space-y-8 pt-4">
+        <div className="border-b border-zinc-800 pb-3">
+          <span className="font-mono text-xs uppercase tracking-widest text-zinc-500 block mb-1">
+            // ESPECIFICACIÓN_FORMAL
+          </span>
+          <h4 className="text-xl sm:text-2xl font-bold text-zinc-100 font-mono">
+            Glosario de Parámetros
+          </h4>
+          <p className="text-xs sm:text-sm font-mono text-zinc-400 mt-1">
+            Definición y rol computacional de cada parámetro en el esquema ML-DSA.
+          </p>
+        </div>
+
+        <Accordion type="multiple" className="w-full space-y-3">
+          {glossary.map((item) => (
+            <AccordionItem
+              key={item.id}
+              value={item.id}
+              className="border border-zinc-800 bg-zinc-950 rounded-none sm:rounded-sm px-6"
+            >
+              <AccordionTrigger className="hover:no-underline py-5 text-left font-mono">
+                <div className="flex items-center gap-3">
+                  <item.icon className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span className="text-sm font-semibold text-zinc-200">{item.title}</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pb-8 pt-2">
+                <div className="space-y-6 pl-7">
+                  <div className="bg-black border border-zinc-800 border-l-2 border-l-cyan-400 p-8 rounded-none sm:rounded-sm inline-block">
+                    <KaTeX math={item.formula} />
+                  </div>
+                  <p className="text-zinc-400 font-mono text-xs sm:text-sm leading-relaxed max-w-4xl">
+                    {item.content}
+                  </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+    </div>
   );
 };
 
