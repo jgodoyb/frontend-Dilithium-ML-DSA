@@ -398,8 +398,14 @@ const SignatureHub = () => {
     a.download = file.name.replace(/\.pdf$/i, "-signed.pdf");
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+    // Margen de gracia para permitir a WebKit (iOS/macOS) completar la lectura del Blob
+    setTimeout(() => {
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
+      }
+      URL.revokeObjectURL(url);
+    }, 60000);
 
     toast({
       title: "Descarga iniciada",
