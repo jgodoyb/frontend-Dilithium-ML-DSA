@@ -12,6 +12,9 @@ import {
   FlaskConical,
   ChevronDown,
   Compass,
+  Users,
+  Inbox,
+  ArrowLeftRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,6 +27,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useMockAuth } from "@/contexts/MockAuthContext";
 import Footer from "./Footer";
+import { SecureContactsDialog } from "./contacts/SecureContactsDialog";
+import { getPendingDocuments } from "@/services/inboxService";
 
 const publicNavKeys = [
   { key: "technology", path: "/tecnologia", icon: FlaskConical },
@@ -34,18 +39,33 @@ const publicNavKeys = [
 
 const protectedNavKeys = [
   { key: "hub", path: "/dashboard/sign", icon: FileSignature },
+  { key: "transfers", path: "/dashboard/transfers", icon: ArrowLeftRight },
 ];
 
 const AppShell = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, user, logout } = useMockAuth();
+  const { isAuthenticated, user, supabaseUser, logout } = useMockAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState<number>(0);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
-  const navItems = isAuthenticated
+  // Consultar cantidad de documentos pendientes
+  useEffect(() => {
+    if (!supabaseUser?.id) {
+      setPendingCount(0);
+      return;
+    }
+    getPendingDocuments(supabaseUser.id)
+      .then((docs) => setPendingCount(docs.length))
+      .catch((err) => console.warn("Error al consultar documentos pendientes:", err));
+  }, [supabaseUser?.id]);
+
+  const navItems = (isAuthenticated
     ? [...publicNavKeys, ...protectedNavKeys]
-    : publicNavKeys;
+    : publicNavKeys
+  ).filter((item) => isAuthenticated || (item.key !== "transfers" && item.key !== "hub"));
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -103,11 +123,19 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  {item.key === "technology" ? "Tecnología" : 
-                   item.key === "plans" ? "Planes" : 
-                   item.key === "architect" ? "El Arquitecto" : 
-                   item.key === "verify" ? "Centro de Verificación" : 
-                   item.key === "hub" ? "Portal de Firmas" : item.key}
+                  <span>
+                    {item.key === "technology" ? "Tecnología" : 
+                     item.key === "plans" ? "Planes" : 
+                     item.key === "architect" ? "El Arquitecto" : 
+                     item.key === "verify" ? "Centro de Verificación" : 
+                     item.key === "hub" ? "Portal de Firmas" :
+                     item.key === "transfers" ? "Transferencias" : item.key}
+                  </span>
+                  {item.key === "transfers" && pendingCount > 0 && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-bold text-black animate-pulse">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -124,31 +152,39 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.2 }}
+                    className="flex items-center gap-2"
                   >
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button className="flex items-center gap-2 rounded-full pl-1 pr-2.5 py-1 hover:bg-secondary/50 transition-colors">
-                          <Avatar className="w-7 h-7">
-                            {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} className="object-cover" />}
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                              {user?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
+                        <button className="relative flex items-center gap-2 rounded-full pl-1 pr-2.5 py-1 hover:bg-secondary/50 transition-colors focus:outline-none">
+                          <div className="relative">
+                            <Avatar className="w-8 h-8 ring-1 ring-white/10">
+                              {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} className="object-cover" />}
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                                {user?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            {pendingCount > 0 && (
+                              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-black text-black ring-2 ring-black shadow-[0_0_10px_rgba(6,182,212,0.8)] animate-pulse">
+                                {pendingCount}
+                              </span>
+                            )}
+                          </div>
                           <ChevronDown className="w-3 h-3 text-muted-foreground" />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuContent align="end" className="w-56 bg-[#090a0f] border-white/10 text-white">
                         <div className="px-3 py-2">
-                          <p className="text-sm font-medium">{user?.name}</p>
+                          <p className="text-sm font-medium text-white">{user?.name}</p>
                           <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                         </div>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => navigate("/dashboard/identity")}>
-                          <User className="w-4 h-4 mr-2" />
+                        <DropdownMenuSeparator className="bg-white/10" />
+                        <DropdownMenuItem onClick={() => navigate("/dashboard/identity")} className="cursor-pointer focus:bg-white/5">
+                          <User className="w-4 h-4 mr-2 text-slate-300" />
                           Mi Identidad
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => { logout(); navigate("/"); }} className="text-destructive focus:text-destructive">
+                        <DropdownMenuSeparator className="bg-white/10" />
+                        <DropdownMenuItem onClick={() => { logout(); navigate("/"); }} className="text-destructive focus:text-destructive cursor-pointer focus:bg-red-500/10">
                           <LogOut className="w-4 h-4 mr-2" />
                           Cerrar Sesión
                         </DropdownMenuItem>
@@ -246,14 +282,14 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
                       <Link
                         to="/dashboard/identity"
                         onClick={() => setMobileOpen(false)}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-muted-foreground rounded-md"
+                        className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground rounded-md"
                       >
                         <User className="w-4 h-4" />
                         Mi Identidad
                       </Link>
                       <button
                         onClick={() => { logout(); navigate("/"); setMobileOpen(false); }}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-destructive rounded-md"
+                        className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-destructive rounded-md text-left"
                       >
                         <LogOut className="w-4 h-4" />
                         Cerrar Sesión
@@ -300,6 +336,9 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
 
       {/* Global footer */}
       <Footer />
+
+      {/* Diálogo de Contactos Seguros */}
+      <SecureContactsDialog open={contactsOpen} onOpenChange={setContactsOpen} />
 
     </div>
   );

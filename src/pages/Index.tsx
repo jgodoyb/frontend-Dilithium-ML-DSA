@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { useMockAuth } from "@/contexts/MockAuthContext";
 
 // Variants para las animaciones tipo Consultora (pesadas, sin rebotes exagerados)
 const fadeUp = {
@@ -18,6 +19,15 @@ const clipHexSlash = "polygon(0 0, 100% 0, 85% 100%, 0% 100%)";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useMockAuth();
+
+  const handleExplore = () => {
+    if (isAuthenticated) {
+      navigate('/dashboard/sign');
+    } else {
+      navigate('/auth?mode=login');
+    }
+  };
 
   return (
     <div className="min-h-screen font-sans selection:bg-[#0e7490] selection:text-white bg-black text-white overflow-x-hidden">
@@ -73,7 +83,7 @@ const Index = () => {
 
             <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4">
               <button
-                onClick={() => navigate('/auth')}
+                onClick={handleExplore}
                 className="relative group inline-flex items-center justify-center gap-3 h-12 sm:h-14 px-8 sm:px-10 mt-2 sm:mt-4 bg-[#0a0a0a] border border-white/10 hover:border-[#0e7490]/50 overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all w-full sm:w-auto"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-[#0e7490]/0 via-[#0e7490]/20 to-[#0e7490]/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out"></div>

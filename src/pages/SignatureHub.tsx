@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UploadCloud,
@@ -12,12 +13,14 @@ import {
   Hexagon,
   KeyRound,
   Trash2,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { validatePdf } from "@/lib/validatePdf";
 import { supabase } from "@/integrations/supabase/client";
+import { markDocumentAsSigned } from "@/services/inboxService";
 import { PDFDocument } from "pdf-lib";
 import { findLastXrefOffset, findLastEofPosition } from "@/lib/PDFScanner";
 import { findLastPageObject, parseXrefTable } from "@/lib/PDFParser";
@@ -77,6 +80,12 @@ const SignatureHub = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // Estados para documentos transferidos recibidos
+  const [activePendingDocId, setActivePendingDocId] = useState<string | null>(null);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const handleFile = useCallback(
     async (f: File) => {
       // SECURITY: Magic-bytes validation — do NOT rely on extension or MIME type alone.
@@ -97,6 +106,19 @@ const SignatureHub = () => {
     },
     [toast]
   );
+
+  // Escuchar si viene un documento descifrado desde la Bandeja de Entrada (vía location.state)
+  useEffect(() => {
+    const locState = location.state as { incomingFile?: File; pendingDocId?: string } | null;
+    if (locState?.incomingFile) {
+      handleFile(locState.incomingFile);
+      if (locState.pendingDocId) {
+        setActivePendingDocId(locState.pendingDocId);
+      }
+      // Limpiar el estado de navegación para evitar recargas accidentales al refrescar
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, handleFile, navigate, location.pathname]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -334,6 +356,16 @@ const SignatureHub = () => {
       const finalSignedPdfBytes = new Uint8Array(finalSignedBuffer);
       setSignedPdfBytes(finalSignedPdfBytes);
       setState("success");
+
+      // Si el documento provino de la bandeja de entrada cifrada, actualizar a 'signed'
+      if (activePendingDocId) {
+        try {
+          await markDocumentAsSigned(activePendingDocId);
+          setActivePendingDocId(null);
+        } catch (markErr) {
+          console.error("Error al marcar documento como firmado:", markErr);
+        }
+      }
     } catch (err: any) {
       setState("ready");
       toast({
@@ -342,7 +374,7 @@ const SignatureHub = () => {
         description: err.message ?? "No se pudo contactar con el servidor.",
       });
     }
-  }, [rawFile, toast]);
+  }, [rawFile, toast, activePendingDocId]);
 
   // Animated progress while processing (visual feedback during real fetch)
   useEffect(() => {
@@ -375,6 +407,7 @@ const SignatureHub = () => {
     setRawFile(null);
     setProgress(0);
     setSignedPdfBytes(null);
+    setActivePendingDocId(null);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
@@ -385,6 +418,7 @@ const SignatureHub = () => {
     setRawFile(null);
     setProgress(0);
     setSignedPdfBytes(null);
+    setActivePendingDocId(null);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
@@ -600,6 +634,14 @@ const SignatureHub = () => {
                     <p className="text-[11px] text-slate-500 font-mono tracking-widest">{file.size}</p>
                   </div>
 
+                  {/* Indicador de documento recibido desde bandeja cifrada */}
+                  {activePendingDocId && (
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[11px] font-mono shadow-sm">
+                      <Lock className="w-3 h-3 text-cyan-400" />
+                      <span>Descifrado con ML-KEM-768 • Pendiente de Firma</span>
+                    </div>
+                  )}
+
                   {/* Botón explícito dentro del dropzone para eliminar archivo */}
                   <button
                     type="button"
@@ -660,7 +702,7 @@ const SignatureHub = () => {
                     <p className="text-emerald-400 font-bold text-sm tracking-wide">
                       DOCUMENTO SELLADO
                     </p>
-                    <p className="text-[11px] text-slate-400 font-mono">
+                    <p className="text-[11px] text-slate-400 font-mono max-w-sm">
                       Actualización incremental aplicada con firma post-cuántica ML-DSA (/Type /Sig)
                     </p>
                   </div>
@@ -675,12 +717,12 @@ const SignatureHub = () => {
           {state === "ready" && (
             <motion.div
               layout
-              key="btn-sign"
+              key="btn-actions"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
-              className="w-full flex justify-center mt-2 max-w-xl"
+              className="w-full flex flex-col items-center gap-4 mt-2 max-w-xl"
             >
               <Button
                 size="lg"
@@ -688,7 +730,7 @@ const SignatureHub = () => {
                 className="relative overflow-hidden w-full max-w-sm bg-gradient-to-r from-[#0e7490] via-cyan-500 to-[#0e7490] bg-[length:200%_auto] hover:bg-right transition-all duration-500 text-white h-14 text-[11px] uppercase tracking-[0.2em] font-extrabold shadow-[0_0_20px_rgba(14,116,144,0.3)] hover:shadow-[0_0_40px_rgba(14,116,144,0.5)] hover:-translate-y-0.5 rounded-full border-none"
               >
                 <Shield className="w-4 h-4 mr-3" />
-                Aplicar Sello Criptográfico
+                {activePendingDocId ? "Firmar y Sellar Documento (ML-DSA)" : "Aplicar Sello Criptográfico"}
               </Button>
             </motion.div>
           )}

@@ -14,6 +14,7 @@ import PlansPage from "./pages/PlansPage";
 import SignatureHub from "./pages/SignatureHub";
 import VerificationCenter from "./pages/VerificationCenter";
 import IdentityPanel from "./pages/IdentityPanel";
+import TransfersPage from "./pages/TransfersPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import CookiesPage from "./pages/CookiesPage";
@@ -55,6 +56,8 @@ const App = () => (
             {/* Protected routes */}
             <Route path="/dashboard/sign" element={<AppShell><ProtectedRoute><SignatureHub /></ProtectedRoute></AppShell>} />
             <Route path="/dashboard/identity" element={<AppShell><ProtectedRoute><IdentityPanel /></ProtectedRoute></AppShell>} />
+            <Route path="/dashboard/transfers" element={<AppShell><ProtectedRoute><TransfersPage /></ProtectedRoute></AppShell>} />
+            <Route path="/transfers" element={<AppShell><ProtectedRoute><TransfersPage /></ProtectedRoute></AppShell>} />
 
             <Route path="*" element={<NotFound />} />
             </Routes>

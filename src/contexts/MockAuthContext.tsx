@@ -60,16 +60,33 @@ export const MockAuthProvider = ({ children }: { children: ReactNode }) => {
     // --- Helper to silently generate keys if missing ---
     const autoGenerateKeys = async (sessionAuth: any) => {
       try {
-        const { data } = await (supabase as any).from('crypto_identities')
-          .select('public_key')
-          .eq('user_id', sessionAuth.user.id);
-          
-        if (!data || data.length === 0) {
+        const { data, error } = await (supabase as any)
+          .from('crypto_identities')
+          .select('public_key, kem_public_key')
+          .eq('user_id', sessionAuth.user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Error al consultar crypto_identities:", error);
+          return;
+        }
+
+        // Si el usuario no tiene registro o le falta alguna de las dos claves poscuánticas
+        if (!data || !data.public_key || !data.kem_public_key) {
           const apiUrl = import.meta.env.VITE_API_URL;
-          await fetch(`${apiUrl}/api/generate`, {
+          const res = await fetch(`${apiUrl}/api/generate`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${sessionAuth.access_token}` }
+            headers: {
+              'Authorization': `Bearer ${sessionAuth.access_token}`,
+              'Content-Type': 'application/json'
+            }
           });
+
+          if (!res.ok) {
+            console.error("Fallo al autogenerar claves poscuánticas:", await res.text());
+          } else {
+            console.log("Identidad post-cuántica (ML-DSA + ML-KEM) aprovisionada con éxito");
+          }
         }
       } catch (e) {
         console.error("Auto keygen error:", e);
