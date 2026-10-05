@@ -135,6 +135,7 @@ function IdentityPanelContent() {
   // Modal dialog states
   const [inspectModalOpen, setInspectModalOpen] = useState(false);
   const [contactsModalOpen, setContactsModalOpen] = useState(false);
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [isReloadingContacts, setIsReloadingContacts] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -187,7 +188,7 @@ function IdentityPanelContent() {
         .select("*")
         .eq("user_id", uid)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(50);
 
       if (!logErr && logData) {
         setLogs(logData as ActivityLog[]);
@@ -627,30 +628,40 @@ function IdentityPanelContent() {
 
               <div className="divide-y divide-neutral-800/40">
                 {logs.length > 0 ? (
-                  logs.map((log) => {
-                    const mockHash = `sha256:${log.id.slice(0, 8)}...${log.id.slice(-4)}`;
-                    return (
-                      <div
-                        key={log.id}
-                        className="py-3.5 border-b border-neutral-800/40 last:border-b-0 flex items-center justify-between hover:bg-white/[0.02] px-2 -mx-2 rounded transition-colors gap-3"
-                      >
-                        <div className="space-y-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium text-neutral-200 hover:text-white transition-colors truncate">
+                  <>
+                    {logs.slice(0, 4).map((log) => {
+                      const mockHash = `sha256:${log.id.slice(0, 8)}...${log.id.slice(-4)}`;
+                      return (
+                        <div
+                          key={log.id}
+                          className="py-3.5 border-b border-neutral-800/40 last:border-b-0 flex items-center justify-between hover:bg-white/[0.02] px-2 -mx-2 rounded transition-colors gap-4"
+                        >
+                          <div className="space-y-1 min-w-0 flex-1 overflow-hidden">
+                            <p
+                              className="text-sm font-medium text-neutral-200 hover:text-white transition-colors truncate"
+                              title={log.file_name}
+                            >
                               {log.file_name}
-                            </span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 border border-neutral-800 bg-neutral-900/60 text-neutral-400 rounded-sm shrink-0">
-                              {log.action_type === 'sign' ? 'ML-DSA-65' : 'VERIFICADO'}
-                            </span>
+                            </p>
+                            <p className="font-mono text-[11px] text-neutral-400 truncate">{mockHash}</p>
                           </div>
-                          <p className="font-mono text-[11px] text-neutral-400">{mockHash}</p>
+                          <div className="text-right shrink-0">
+                            <span className="text-xs text-neutral-500 font-mono">{safeFormatDate(log.created_at)}</span>
+                          </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-xs text-neutral-500 font-mono">{safeFormatDate(log.created_at)}</span>
-                        </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+
+                    {logs.length > 4 && (
+                      <button
+                        type="button"
+                        onClick={() => setLogsModalOpen(true)}
+                        className="text-xs font-mono text-neutral-400 hover:text-white transition-colors cursor-pointer mt-3 block text-left"
+                      >
+                        Ver más registros ({logs.length}) →
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <div className="py-12 text-center text-xs text-neutral-500 font-mono">
                     // NO HAY REGISTROS DISPONIBLES EN ESTE NODO
@@ -1122,6 +1133,69 @@ function IdentityPanelContent() {
               className="hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0"
             >
               Transferir archivos →
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Historial Completo de Firmas y Documentos */}
+      <Dialog open={logsModalOpen} onOpenChange={setLogsModalOpen}>
+        <DialogContent className="bg-neutral-950 border border-neutral-800 text-white max-w-xl w-full max-h-[85vh] flex flex-col p-6 sm:rounded-xl shadow-2xl backdrop-blur-xl">
+          <DialogHeader className="pb-3 border-b border-neutral-800/80">
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle className="font-mono text-xs uppercase tracking-wider text-neutral-300 font-semibold flex items-center gap-2">
+                HISTORIAL DE FIRMAS & DOCUMENTOS
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-neutral-500 font-mono mt-0.5">
+              Registro de auditoría criptográfica ({logs.length} eventos)
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 overflow-y-auto max-h-[55vh] divide-y divide-neutral-800/40 pr-1">
+            {logs.length > 0 ? (
+              logs.map((log) => {
+                const mockHash = `sha256:${log.id.slice(0, 8)}...${log.id.slice(-4)}`;
+                return (
+                  <div
+                    key={log.id}
+                    className="py-3 border-b border-neutral-800/40 last:border-b-0 flex items-center justify-between hover:bg-white/[0.02] px-2 rounded transition-colors gap-4"
+                  >
+                    <div className="space-y-1 min-w-0 flex-1 overflow-hidden">
+                      <p
+                        className="text-sm font-medium text-neutral-200 hover:text-white transition-colors truncate"
+                        title={log.file_name}
+                      >
+                        {log.file_name}
+                      </p>
+                      <p className="font-mono text-[11px] text-neutral-400 truncate">{mockHash}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs text-neutral-500 font-mono">{safeFormatDate(log.created_at)}</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-8 text-center text-xs font-mono text-neutral-500">
+                // NO HAY REGISTROS DISPONIBLES EN ESTE NODO
+              </div>
+            )}
+          </div>
+
+          <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between text-xs font-mono text-neutral-400">
+            <span className="text-neutral-500 text-[11px]">
+              Auditado por ML-DSA-65
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setLogsModalOpen(false);
+                navigate("/signature-hub");
+              }}
+              className="hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0"
+            >
+              Firmar nuevo documento →
             </button>
           </div>
         </DialogContent>
