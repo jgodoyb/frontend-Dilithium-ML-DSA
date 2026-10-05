@@ -28,7 +28,7 @@ import torDiscern from "@/assets/tor-discern.jpg";
 
 const GITHUB_URL = "https://github.com/jgodoyb";
 const LINKEDIN_URL = "https://www.linkedin.com/in/jorge-godoy-beltr%C3%A1n-068622284/";
-const CONTACT_EMAIL = "jgodoyb99@gmail.com";
+const CONTACT_EMAIL = "godoyjorgeb@gmail.com";
 
 interface NarrativeMilestone {
   index: string;

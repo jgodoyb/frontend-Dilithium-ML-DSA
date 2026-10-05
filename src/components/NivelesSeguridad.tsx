@@ -138,7 +138,7 @@ const NivelesSeguridad = () => {
       {/* Intro Header */}
       <div className="space-y-2">
         <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold block">
-          // MATRIZ_COMPARATIVA
+          // MATRIZ COMPARATIVA
         </span>
         <h3 className="text-xl sm:text-2xl font-bold text-zinc-100 font-mono">
           Niveles de Seguridad Oficiales
@@ -157,9 +157,8 @@ const NivelesSeguridad = () => {
             {levels.map((l, i) => (
               <div
                 key={l.name}
-                className={`p-4 sm:p-5 text-center transition-colors border-l border-zinc-800 font-mono cursor-default ${
-                  hovered === i ? "text-cyan-300 bg-cyan-950/20" : "text-zinc-200"
-                }`}
+                className={`p-4 sm:p-5 text-center transition-colors border-l border-zinc-800 font-mono cursor-default ${hovered === i ? "text-cyan-300 bg-cyan-950/20" : "text-zinc-200"
+                  }`}
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
               >
@@ -181,13 +180,12 @@ const NivelesSeguridad = () => {
               {row.values.map((v, ci) => (
                 <div
                   key={ci}
-                  className={`p-4 text-center font-mono transition-colors border-l border-zinc-800 ${
-                    hovered === ci
+                  className={`p-4 text-center font-mono transition-colors border-l border-zinc-800 ${hovered === ci
                       ? "text-cyan-300 bg-cyan-950/20"
                       : row.isSecurity
-                      ? "text-cyan-400 font-bold"
-                      : "text-zinc-400"
-                  }`}
+                        ? "text-cyan-400 font-bold"
+                        : "text-zinc-400"
+                    }`}
                   onMouseEnter={() => setHovered(ci)}
                   onMouseLeave={() => setHovered(null)}
                 >

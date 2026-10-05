@@ -54,11 +54,10 @@ const SeedNode = ({
     <TooltipTrigger asChild>
       <div className="flex flex-col items-center gap-2 cursor-help">
         <div
-          className={`w-16 h-16 rounded-none sm:rounded-sm border flex items-center justify-center font-mono ${
-            isPublic
-              ? "border-cyan-500/40 text-cyan-400 bg-cyan-950/20"
-              : "border-zinc-500/40 text-zinc-300 bg-zinc-900/60"
-          }`}
+          className={`w-16 h-16 rounded-none sm:rounded-sm border flex items-center justify-center font-mono ${isPublic
+            ? "border-cyan-500/40 text-cyan-400 bg-cyan-950/20"
+            : "border-zinc-500/40 text-zinc-300 bg-zinc-900/60"
+            }`}
         >
           <KaTeX math={formula} />
         </div>
@@ -87,27 +86,24 @@ const StepCard = ({
   isPublic: boolean;
 }) => (
   <div
-    className={`bg-zinc-950 border p-8 rounded-none sm:rounded-sm flex flex-col space-y-5 transition-colors ${
-      isPublic
-        ? "border-zinc-800 hover:border-cyan-500/40"
-        : "border-zinc-800 hover:border-zinc-600"
-    }`}
+    className={`bg-zinc-950 border p-8 rounded-none sm:rounded-sm flex flex-col space-y-5 transition-colors ${isPublic
+      ? "border-zinc-800 hover:border-cyan-500/40"
+      : "border-zinc-800 hover:border-zinc-600"
+      }`}
   >
     <div className="flex items-center gap-3 border-b border-zinc-800 pb-3">
       <div
-        className={`w-9 h-9 rounded-none sm:rounded-sm flex items-center justify-center shrink-0 border ${
-          isPublic
-            ? "border-cyan-500/30 text-cyan-400 bg-cyan-950/20"
-            : "border-zinc-700 text-zinc-300 bg-zinc-900"
-        }`}
+        className={`w-9 h-9 rounded-none sm:rounded-sm flex items-center justify-center shrink-0 border ${isPublic
+          ? "border-cyan-500/30 text-cyan-400 bg-cyan-950/20"
+          : "border-zinc-700 text-zinc-300 bg-zinc-900"
+          }`}
       >
         <Icon className="w-4 h-4" />
       </div>
       <div>
         <span
-          className={`text-[10px] font-mono uppercase tracking-widest block font-bold ${
-            isPublic ? "text-cyan-400" : "text-zinc-500"
-          }`}
+          className={`text-[10px] font-mono uppercase tracking-widest block font-bold ${isPublic ? "text-cyan-400" : "text-zinc-500"
+            }`}
         >
           Paso {num}
         </span>
@@ -149,7 +145,7 @@ const GeneracionClavesSection = () => {
         {/* Header */}
         <div className="space-y-2">
           <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold block">
-            // FASE_01 // ASYMMETRIC_KEY_GENERATION
+            // FASE 01 // ASYMMETRIC KEY GENERATION
           </span>
           <h3 className="text-xl sm:text-2xl font-bold text-zinc-100">
             Generación de Claves (KeyGen)
@@ -167,11 +163,10 @@ const GeneracionClavesSection = () => {
             <button
               key={l.name}
               onClick={() => setLevelIdx(i)}
-              className={`flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-bold uppercase tracking-wider transition-colors border rounded-none sm:rounded-sm ${
-                levelIdx === i
-                  ? "border-cyan-400 text-cyan-300 bg-cyan-950/20"
-                  : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
-              }`}
+              className={`flex items-center gap-2 px-5 py-2.5 font-mono text-xs font-bold uppercase tracking-wider transition-colors border rounded-none sm:rounded-sm ${levelIdx === i
+                ? "border-cyan-400 text-cyan-300 bg-cyan-950/20"
+                : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                }`}
             >
               <Shield className="w-3.5 h-3.5" />
               <span>{l.name} [{l.label}]</span>

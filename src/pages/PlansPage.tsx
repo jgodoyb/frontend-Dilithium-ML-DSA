@@ -169,12 +169,7 @@ const PlansPage = () => {
       <div className="relative z-10 max-w-[1300px] mx-auto px-4 sm:px-6">
         {/* ── HEADER TÉCNICO Y LIMPIO ── */}
         <div className="mb-14 sm:mb-20">
-          <div className="flex items-center gap-3 mb-6">
-            <Terminal className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-mono tracking-widest uppercase text-zinc-500">
-              SYS_CONFIG // TOPOLOGY_MATRIX_v2.0
-            </span>
-          </div>
+
 
           <h1 className="text-zinc-100 font-bold tracking-tight text-5xl md:text-7xl mb-6">
             INFRAESTRUCTURA DE DESPLIEGUE.
@@ -319,10 +314,7 @@ const PlansPage = () => {
 
           <div className="relative z-10 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-[10px] font-mono uppercase tracking-widest text-zinc-300">
-                <Building2 className="w-3 h-3 text-cyan-400" />
-                <span>DEDICATED_TOPOLOGY</span>
-              </div>
+
 
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-100 leading-tight">
                 Despliegues On-Premise & Soberanía Nacional.
@@ -357,7 +349,7 @@ const PlansPage = () => {
             <div className="space-y-8 lg:pl-12 lg:border-l border-zinc-800">
               <div>
                 <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-3">
-                  // CONTACT STRATEGY LEAD
+                  // EMAIL DE CONTACTO
                 </p>
                 <a
                   href="mailto:godoyjorgeb@gmail.com"

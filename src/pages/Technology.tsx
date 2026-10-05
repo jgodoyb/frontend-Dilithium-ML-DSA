@@ -128,7 +128,7 @@ const Technology = () => {
         <aside className="hidden lg:block relative">
           <div className="sticky top-28 py-6 px-4 bg-zinc-950/90 backdrop-blur-md border border-zinc-800 rounded-none sm:rounded-sm">
             <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-400 font-bold mb-6 pb-2 border-b border-zinc-800 flex items-center justify-between">
-              <span>// ÍNDICE_TÉCNICO</span>
+              <span>// ÍNDICE</span>
               <span className="text-cyan-400 text-[10px]">v2.0</span>
             </h3>
             <div className="space-y-1">

@@ -77,10 +77,7 @@ import {
 } from "@/services/inboxService";
 import {
   getUserContacts,
-  generateConnectionCode,
-  redeemConnectionCode,
   ContactIdentity,
-  ConnectionCodeResult,
 } from "@/services/contactService";
 
 export default function TransfersPage() {
@@ -95,8 +92,6 @@ export default function TransfersPage() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // Tab activo principal: 'documents' | 'contacts'
-  const [activeMainTab, setActiveMainTab] = useState<string>("documents");
   // Subtab para documentos: 'received' | 'send' | 'sent'
   const [docSubTab, setDocSubTab] = useState<"received" | "send" | "sent">("received");
 
@@ -128,16 +123,9 @@ export default function TransfersPage() {
   const [discarding, setDiscarding] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
 
-  // Estado de Contactos y Códigos
+  // Estado de Contactos (utilizado para destinatarios en envíos)
   const [contacts, setContacts] = useState<ContactIdentity[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
-  const [myCode, setMyCode] = useState<ConnectionCodeResult | null>(null);
-  const [generatingCode, setGeneratingCode] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [codeInput, setCodeInput] = useState("");
-  const [redeeming, setRedeeming] = useState(false);
-  const [copiedKeyUserId, setCopiedKeyUserId] = useState<string | null>(null);
 
   function formatBytes(bytes: number): string {
     if (bytes < 1024) return bytes + " B";
@@ -293,33 +281,6 @@ export default function TransfersPage() {
     }
   }, [supabaseUser?.id, loadDocuments, loadContacts]);
 
-  // 3. Temporizador de expiración para Mi Código
-  useEffect(() => {
-    if (!myCode?.expires_at) {
-      setTimeLeft(null);
-      return;
-    }
-
-    const calculateRemaining = () => {
-      const diffMs = new Date(myCode.expires_at).getTime() - Date.now();
-      const diffSecs = Math.max(0, Math.floor(diffMs / 1000));
-      setTimeLeft(diffSecs);
-      if (diffSecs <= 0) {
-        setMyCode(null);
-      }
-    };
-
-    calculateRemaining();
-    const interval = setInterval(calculateRemaining, 1000);
-    return () => clearInterval(interval);
-  }, [myCode]);
-
-  const formatTimeLeft = (seconds: number | null): string => {
-    if (seconds === null) return "--:--";
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
 
   // 4. Descifrar y Abrir Modal de Revisión (usando caché en memoria de sesión)
   const handleDecryptAndReview = async (doc: PendingDocumentItem) => {
@@ -430,73 +391,6 @@ export default function TransfersPage() {
     }
   };
 
-  // 8. Generar Código OTP
-  const handleGenerateCode = async () => {
-    if (!supabaseUser?.id) return;
-    setGeneratingCode(true);
-    try {
-      const result = await generateConnectionCode(supabaseUser.id);
-      setMyCode(result);
-      setCodeCopied(false);
-      toast({
-        title: "¡Código OTP Generado!",
-        description: "Comparte este código de 6 caracteres con el contacto.",
-      });
-    } catch (err: unknown) {
-      toast({
-        variant: "destructive",
-        title: "Error al generar código",
-        description: err instanceof Error ? err.message : "Error inesperado.",
-      });
-    } finally {
-      setGeneratingCode(false);
-    }
-  };
-
-  const handleCopyCode = () => {
-    if (!myCode?.code) return;
-    navigator.clipboard.writeText(myCode.code);
-    setCodeCopied(true);
-    toast({
-      title: "Código copiado",
-      description: "El código OTP ha sido copiado al portapapeles.",
-    });
-    setTimeout(() => setCodeCopied(false), 2500);
-  };
-
-  // 9. Canjear Código OTP
-  const handleRedeemCode = async () => {
-    if (!supabaseUser?.id || !codeInput.trim()) return;
-    setRedeeming(true);
-    try {
-      await redeemConnectionCode(supabaseUser.id, codeInput);
-      // Notificación de éxito silenciada: la actualización de la lista de contactos es confirmación visual suficiente
-      setCodeInput("");
-      await loadContacts();
-    } catch (err: unknown) {
-      const rawMessage = err instanceof Error ? err.message : "";
-      const isTechnical = /row-level security|rls|violates|policy|pgrst|42501|permission denied/i.test(rawMessage);
-      toast({
-        variant: "destructive",
-        title: "No se pudo vincular el contacto",
-        description: isTechnical || !rawMessage
-          ? "El código ingresado es inválido, ya fue utilizado por otro usuario o ha expirado."
-          : rawMessage,
-      });
-    } finally {
-      setRedeeming(false);
-    }
-  };
-
-  const handleCopyKey = (userId: string, key: string) => {
-    navigator.clipboard.writeText(key);
-    setCopiedKeyUserId(userId);
-    toast({
-      title: "Clave KEM Copiada",
-      description: "Clave pública Kyber copiada al portapapeles.",
-    });
-    setTimeout(() => setCopiedKeyUserId(null), 2000);
-  };
 
   // Guarda visual mientras se verifica autenticación
   if (authLoading) {
@@ -547,37 +441,10 @@ export default function TransfersPage() {
           </div>
         </div>
 
-        {/* Pestañas Principales */}
-        <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="space-y-6">
-          <TabsList className="bg-white/[0.03] border border-white/10 p-1 rounded-2xl h-12 w-full sm:w-auto inline-flex">
-            <TabsTrigger
-              value="documents"
-              className="rounded-xl px-5 text-xs font-semibold data-[state=active]:bg-[#0e7490] data-[state=active]:text-white data-[state=active]:shadow-lg gap-2 transition-all flex-1 sm:flex-initial"
-            >
-              <Inbox className="w-4 h-4" />
-              <span>Bandeja de Documentos</span>
-              {pendingDocs.length > 0 && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-400 text-black text-[9px] font-black px-1">
-                  {pendingDocs.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="contacts"
-              className="rounded-xl px-5 text-xs font-semibold data-[state=active]:bg-[#0e7490] data-[state=active]:text-white data-[state=active]:shadow-lg gap-2 transition-all flex-1 sm:flex-initial"
-            >
-              <Users className="w-4 h-4" />
-              <span>Contactos & Códigos OTP</span>
-              <span className="text-[10px] opacity-70 font-mono">({contacts.length})</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ========================================================================= */}
-          {/* TAB 1: BANDEJA DE DOCUMENTOS (RECIBIDOS Y ENVIADOS)                       */}
-          {/* ========================================================================= */}
-          <TabsContent value="documents" className="space-y-6 focus:outline-none">
-            {/* Sub-selector: Recibidos | Nuevo Envío Cifrado | Historial de Envíos */}
-            <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-4 flex-wrap">
+        {/* Gestión Documental: Recibidos, Envíos e Historial */}
+        <div className="space-y-6">
+          {/* Sub-selector: Recibidos | Nuevo Envío Cifrado | Historial de Envíos */}
+          <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-4 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   size="sm"
@@ -896,11 +763,11 @@ export default function TransfersPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setActiveMainTab("contacts")}
+                            onClick={() => navigate("/identity")}
                             className="text-xs border-cyan-500/30 text-cyan-300 hover:bg-cyan-950/30 gap-2 h-9 rounded-xl"
                           >
                             <UserPlus className="w-3.5 h-3.5" />
-                            Ir a Contactos & Códigos OTP
+                            Ir a Mi Identidad para Vincular
                           </Button>
                         </div>
                       ) : (
@@ -1063,251 +930,7 @@ export default function TransfersPage() {
                 )}
               </div>
             )}
-          </TabsContent>
-
-          {/* ========================================================================= */}
-          {/* TAB 2: CONTACTOS SEGUROS & CÓDIGOS OTP                                    */}
-          {/* ========================================================================= */}
-          <TabsContent value="contacts" className="space-y-6 focus:outline-none">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Columna Izquierda: Generar y Canjear Códigos OTP */}
-              <div className="lg:col-span-5 space-y-6">
-                {/* Tarjeta 1: Mi Código */}
-                <Card className="border border-white/10 bg-[#090a0f] rounded-2xl shadow-xl overflow-hidden relative">
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-cyan-950/30 border border-cyan-500/30 text-cyan-400">
-                        <KeyRound className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-base font-bold text-white">Mi Código de Conexión</CardTitle>
-                        <CardDescription className="text-xs text-slate-400">
-                          Código OTP temporal de 6 caracteres con validez de 10 minutos.
-                        </CardDescription>
-                      </div>
-                    </div>
-
-                    {myCode ? (
-                      <div className="p-5 rounded-2xl bg-black/60 border border-cyan-500/30 space-y-4 text-center">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest">Código Activo</p>
-                          <div className="text-3xl font-black font-mono tracking-[0.3em] text-white">
-                            {myCode.code}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-center gap-2 text-xs font-mono text-slate-400">
-                          <Clock className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Expira en:</span>
-                          <strong className="text-amber-300 font-bold">{formatTimeLeft(timeLeft)}</strong>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={handleCopyCode}
-                            className="flex-1 bg-[#0e7490] hover:bg-cyan-500 text-white font-bold text-xs h-10 rounded-xl gap-2"
-                          >
-                            {codeCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                            <span>{codeCopied ? "¡Copiado!" : "Copiar Código"}</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleGenerateCode}
-                            disabled={generatingCode}
-                            className="border-white/15 text-xs text-slate-300 hover:text-white rounded-xl h-10"
-                          >
-                            Renovar
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 space-y-3">
-                        <p className="text-xs text-slate-400">
-                          Genera un código OTP para compartirlo con la persona que deseas vincular.
-                        </p>
-                        <Button
-                          onClick={handleGenerateCode}
-                          disabled={generatingCode}
-                          className="bg-gradient-to-r from-[#0e7490] via-cyan-500 to-[#0e7490] bg-[length:200%_auto] hover:bg-right text-white font-bold text-xs h-11 px-6 rounded-xl gap-2 shadow-lg transition-all"
-                        >
-                          {generatingCode ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Generando OTP...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-4 h-4" />
-                              <span>Generar Código de Conexión</span>
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-
-                {/* Tarjeta 2: Canjear Código */}
-                <Card className="border border-white/10 bg-[#090a0f] rounded-2xl shadow-xl">
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-cyan-400">
-                        <UserPlus className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-base font-bold text-white">Vincular Código Recibido</CardTitle>
-                        <CardDescription className="text-xs text-slate-400">
-                          Ingresa el código proporcionado por tu contacto para establecer la conexión mutua.
-                        </CardDescription>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <Input
-                        value={codeInput}
-                        onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-                        placeholder="EJ: 9X4K2A"
-                        maxLength={8}
-                        className="bg-black/60 border-white/15 font-mono text-center tracking-[0.25em] text-lg font-bold h-12 uppercase"
-                      />
-                      <Button
-                        onClick={handleRedeemCode}
-                        disabled={!codeInput.trim() || redeeming}
-                        className="w-full bg-[#0e7490] hover:bg-cyan-500 text-white font-bold text-xs h-11 rounded-xl gap-2 transition-all"
-                      >
-                        {redeeming ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <span>Validando e intercambiando claves...</span>
-                          </>
-                        ) : (
-                          <>
-                            <ShieldCheck className="w-4 h-4" />
-                            <span>Canjear y Establecer Conexión</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              {/* Columna Derecha: Directorio de Contactos Seguros */}
-              <div className="lg:col-span-7 space-y-4">
-                <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-cyan-400" />
-                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                      Contactos Vinculados ({contacts.length})
-                    </h2>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={loadContacts}
-                    disabled={loadingContacts}
-                    className="h-8 text-xs text-slate-400 hover:text-white gap-1.5"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${loadingContacts ? "animate-spin" : ""}`} />
-                    <span>Actualizar</span>
-                  </Button>
-                </div>
-
-                {loadingContacts ? (
-                  <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-400">
-                    <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-                    <p className="text-xs font-mono">Cargando directorio seguro...</p>
-                  </div>
-                ) : contacts.length === 0 ? (
-                  <Card className="border border-dashed border-white/10 bg-white/[0.01] rounded-2xl py-16 text-center">
-                    <CardContent className="space-y-3">
-                      <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-slate-500">
-                        <Users className="w-6 h-6 opacity-60" />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold text-white">No tienes contactos vinculados</p>
-                        <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                          Genera un código OTP para compartirlo o canjea uno de tu contacto en la columna izquierda.
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <ScrollArea className="max-h-[560px] pr-2">
-                    <div className="space-y-3">
-                      {contacts.map((c) => {
-                        const name = c.full_name || c.email;
-                        const isCopied = copiedKeyUserId === c.user_id;
-
-                        return (
-                          <Card
-                            key={c.user_id}
-                            className="border border-white/10 bg-[#090a0f] rounded-2xl p-4 hover:border-cyan-500/30 transition-all"
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <Avatar className="w-10 h-10 ring-1 ring-white/10 shrink-0">
-                                  {c.avatar_url && <AvatarImage src={c.avatar_url} alt={name} />}
-                                  <AvatarFallback className="bg-cyan-950/40 text-cyan-400 text-xs font-bold">
-                                    {name.slice(0, 2).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="min-w-0 space-y-0.5">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-sm font-bold text-white truncate max-w-[200px] sm:max-w-xs">
-                                      {name}
-                                    </p>
-                                    <Badge className="bg-emerald-950/40 text-emerald-400 border-emerald-500/30 text-[9px] font-mono py-0">
-                                      KEM Activo
-                                    </Badge>
-                                  </div>
-                                  <p className="text-xs text-slate-400 font-mono truncate max-w-[240px]">
-                                    {c.email}
-                                  </p>
-                                  {c.kem_public_key && (
-                                    <p className="text-[10px] font-mono text-slate-600 truncate max-w-xs">
-                                      Clave: {c.kem_public_key.slice(0, 24)}...
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0 justify-end">
-                                {c.kem_public_key && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleCopyKey(c.user_id, c.kem_public_key!)}
-                                    className="border-white/10 text-xs h-9 px-3 text-slate-300 hover:text-white rounded-xl gap-1.5"
-                                    title="Copiar Clave Pública Kyber"
-                                  >
-                                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                                    <span className="hidden sm:inline">{isCopied ? "Copiada" : "Copiar Clave"}</span>
-                                  </Button>
-                                )}
-
-                                <Button
-                                  size="sm"
-                                  onClick={() => navigate("/dashboard/sign")}
-                                  className="bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 text-cyan-300 text-xs h-9 px-3.5 rounded-xl gap-1.5 font-semibold"
-                                >
-                                  <Send className="w-3.5 h-3.5" />
-                                  <span>Transferir</span>
-                                </Button>
-                              </div>
-                            </div>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
 
       {/* Overlay de carga durante el descifrado KEM en segundo plano */}

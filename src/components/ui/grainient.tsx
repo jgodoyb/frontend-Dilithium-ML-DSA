@@ -31,8 +31,16 @@ interface GrainientProps {
 }
 
 const hexToRgb = (hex: string): [number, number, number] => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!result) return [1, 1, 1];
+    const clean = hex.replace(/^#/, '');
+    if (clean.length === 3) {
+        return [
+            parseInt(clean[0] + clean[0], 16) / 255,
+            parseInt(clean[1] + clean[1], 16) / 255,
+            parseInt(clean[2] + clean[2], 16) / 255,
+        ];
+    }
+    const result = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})/i.exec(clean);
+    if (!result) return [0.1, 0.1, 0.2];
     return [parseInt(result[1], 16) / 255, parseInt(result[2], 16) / 255, parseInt(result[3], 16) / 255];
 };
 
