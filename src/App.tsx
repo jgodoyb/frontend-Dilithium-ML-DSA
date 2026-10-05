@@ -50,12 +50,16 @@ const App = () => (
             <Route path="/cookies" element={<AppShell><CookiesPage /></AppShell>} />
             <Route path="/faq" element={<AppShell><FaqPage /></AppShell>} />
             <Route path="/tecnologia" element={<AppShell><Technology /></AppShell>} />
+            <Route path="/technology" element={<AppShell><Technology /></AppShell>} />
             <Route path="/dashboard/plans" element={<AppShell><PlansPage /></AppShell>} />
             <Route path="/dashboard/verify" element={<AppShell><VerificationCenter /></AppShell>} />
+            <Route path="/verify" element={<AppShell><VerificationCenter /></AppShell>} />
 
             {/* Protected routes */}
             <Route path="/dashboard/sign" element={<AppShell><ProtectedRoute><SignatureHub /></ProtectedRoute></AppShell>} />
+            <Route path="/signatures" element={<AppShell><ProtectedRoute><SignatureHub /></ProtectedRoute></AppShell>} />
             <Route path="/dashboard/identity" element={<AppShell><ProtectedRoute><IdentityPanel /></ProtectedRoute></AppShell>} />
+            <Route path="/identity" element={<AppShell><ProtectedRoute><IdentityPanel /></ProtectedRoute></AppShell>} />
             <Route path="/dashboard/transfers" element={<AppShell><ProtectedRoute><TransfersPage /></ProtectedRoute></AppShell>} />
             <Route path="/transfers" element={<AppShell><ProtectedRoute><TransfersPage /></ProtectedRoute></AppShell>} />
 

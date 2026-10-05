@@ -60,7 +60,7 @@ const VerificacionSection = () => {
       {/* Header */}
       <div className="space-y-2">
         <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold block">
-          // FASE_05 // ML-DSA.VERIFY
+          // FASE 05 // ML-DSA.VERIFY
         </span>
         <h3 className="text-xl sm:text-2xl font-bold text-zinc-100 font-mono">
           Protocolo de Verificación (ML-DSA.Verify)
@@ -78,11 +78,10 @@ const VerificacionSection = () => {
             <button
               key={s.num}
               onClick={() => setActiveStep(i)}
-              className={`p-3.5 text-left font-mono border rounded-none sm:rounded-sm transition-colors flex flex-col justify-between min-h-[72px] ${
-                isActive
+              className={`p-3.5 text-left font-mono border rounded-none sm:rounded-sm transition-colors flex flex-col justify-between min-h-[72px] ${isActive
                   ? "border-cyan-400 bg-cyan-950/20 text-cyan-300 font-bold"
                   : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between w-full mb-1">
                 <span className="text-[10px] tracking-wider">[{s.numStr}]</span>

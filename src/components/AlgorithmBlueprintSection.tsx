@@ -239,7 +239,7 @@ const AlgorithmBlueprintSection = () => {
     const alg = allAlgorithms.find((a) => a.id === id);
     return alg
       ? alg.name.toLowerCase().includes(q) ||
-          alg.algNum.toLowerCase().includes(q)
+      alg.algNum.toLowerCase().includes(q)
       : false;
   };
 
@@ -256,7 +256,7 @@ const AlgorithmBlueprintSection = () => {
       {/* Header */}
       <div className="space-y-2">
         <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold block">
-          // FASE_06 // THE_ALGORITHM_BLUEPRINT
+          // FASE 06 // THE ALGORITHM BLUEPRINT
         </span>
         <h3 className="text-xl sm:text-2xl font-bold text-zinc-100">
           The Algorithm Blueprint (FIPS 204)
@@ -280,11 +280,10 @@ const AlgorithmBlueprintSection = () => {
         </div>
         <button
           onClick={() => setTreeMode(!treeMode)}
-          className={`flex items-center gap-2 px-4 py-2 font-mono text-xs font-bold uppercase rounded-none sm:rounded-sm border transition-colors ${
-            treeMode
-              ? "bg-cyan-950/20 border-cyan-400 text-cyan-300"
-              : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
-          }`}
+          className={`flex items-center gap-2 px-4 py-2 font-mono text-xs font-bold uppercase rounded-none sm:rounded-sm border transition-colors ${treeMode
+            ? "bg-cyan-950/20 border-cyan-400 text-cyan-300"
+            : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+            }`}
         >
           <Boxes className="w-3.5 h-3.5" />
           MODO ÁRBOL
@@ -336,11 +335,10 @@ const AlgorithmBlueprintSection = () => {
                 className="group relative"
               >
                 <div
-                  className={`w-8 h-5 rounded-none font-mono text-[9px] font-bold flex items-center justify-center border transition-colors ${
-                    hasMatch
-                      ? "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-400"
-                      : "bg-zinc-950/50 border-zinc-900 text-zinc-700 opacity-40"
-                  }`}
+                  className={`w-8 h-5 rounded-none font-mono text-[9px] font-bold flex items-center justify-center border transition-colors ${hasMatch
+                    ? "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-400"
+                    : "bg-zinc-950/50 border-zinc-900 text-zinc-700 opacity-40"
+                    }`}
                 >
                   {l.level}
                 </div>
@@ -377,9 +375,8 @@ const AlgorithmBlueprintSection = () => {
                 {/* Level header */}
                 <button
                   onClick={() => treeMode && toggleLevel(l.level)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-none sm:rounded-sm border border-zinc-800 bg-zinc-950/90 transition-colors ${
-                    treeMode ? "cursor-pointer hover:border-zinc-700" : "cursor-default"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-none sm:rounded-sm border border-zinc-800 bg-zinc-950/90 transition-colors ${treeMode ? "cursor-pointer hover:border-zinc-700" : "cursor-default"
+                    }`}
                 >
                   {treeMode && (
                     isCollapsed
@@ -420,31 +417,29 @@ const AlgorithmBlueprintSection = () => {
                           onClick={() =>
                             setSelected(selected === alg.id ? null : alg.id)
                           }
-                          className={`text-left p-4 sm:p-5 border rounded-none sm:rounded-sm font-mono transition-all duration-200 flex flex-col justify-between ${
-                            isSelected
-                              ? "border-white bg-cyan-950/60 text-white shadow-[0_0_20px_rgba(34,211,238,0.25)] ring-1 ring-white"
-                              : isDirect
+                          className={`text-left p-4 sm:p-5 border rounded-none sm:rounded-sm font-mono transition-all duration-200 flex flex-col justify-between ${isSelected
+                            ? "border-white bg-cyan-950/60 text-white shadow-[0_0_20px_rgba(34,211,238,0.25)] ring-1 ring-white"
+                            : isDirect
                               ? "border-cyan-400 bg-cyan-950/30 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
                               : isTransitive
-                              ? "border-cyan-500/40 bg-cyan-950/10 text-cyan-400/90"
-                              : dimmed
-                              ? "opacity-25 border-zinc-900 bg-zinc-950/40 text-zinc-600"
-                              : visible
-                              ? "border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900/50"
-                              : "opacity-15 border-zinc-900 bg-zinc-950 text-zinc-700"
-                          }`}
+                                ? "border-cyan-500/40 bg-cyan-950/10 text-cyan-400/90"
+                                : dimmed
+                                  ? "opacity-25 border-zinc-900 bg-zinc-950/40 text-zinc-600"
+                                  : visible
+                                    ? "border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900/50"
+                                    : "opacity-15 border-zinc-900 bg-zinc-950 text-zinc-700"
+                            }`}
                         >
                           <div className="flex items-center justify-between mb-2">
                             <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 border ${
-                                isSelected
-                                  ? "border-white bg-white/20 text-white"
-                                  : isDirect
+                              className={`text-[10px] font-bold px-1.5 py-0.5 border ${isSelected
+                                ? "border-white bg-white/20 text-white"
+                                : isDirect
                                   ? "border-cyan-400/80 bg-cyan-950/80 text-cyan-200"
                                   : isTransitive
-                                  ? "border-cyan-500/50 bg-cyan-950/40 text-cyan-400"
-                                  : "border-zinc-800 bg-zinc-900 text-zinc-400"
-                              }`}
+                                    ? "border-cyan-500/50 bg-cyan-950/40 text-cyan-400"
+                                    : "border-zinc-800 bg-zinc-900 text-zinc-400"
+                                }`}
                             >
                               {alg.algNum}
                             </span>

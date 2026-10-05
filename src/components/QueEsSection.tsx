@@ -166,7 +166,7 @@ const QueEsSection = () => {
       <div className="bg-zinc-950 border border-zinc-800 p-8 sm:p-10 rounded-none sm:rounded-sm space-y-8">
         <div>
           <span className="font-mono text-xs uppercase tracking-widest text-zinc-500 font-bold block mb-1">
-            // TOPOLOGÍA_DE_SEGURIDAD
+            // TOPOLOGÍA DE SEGURIDAD
           </span>
           <h4 className="text-xl sm:text-2xl font-bold text-zinc-100 font-mono">El Estándar ML-DSA</h4>
           <p className="text-zinc-400 text-xs sm:text-sm font-mono mt-2 leading-relaxed">
@@ -197,8 +197,7 @@ const QueEsSection = () => {
                     <p className="text-[11px] font-mono text-zinc-500 mt-2">{l.specs}</p>
                   </div>
                   <div className="flex items-center gap-1.5 text-[10px] font-mono text-cyan-400/80 tracking-wider">
-                    <span className="inline-block w-1.5 h-1.5 bg-cyan-400 animate-pulse" />
-                    [ HOVER_TO_DECODE ]
+
                   </div>
                 </div>
               }

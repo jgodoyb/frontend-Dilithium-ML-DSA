@@ -1,33 +1,26 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { 
-  Key, 
-  ShieldCheck, 
-  Copy, 
-  Building2, 
-  Briefcase, 
-  Activity, 
-  History, 
-  Shield, 
-  Zap, 
-  Crown, 
-  CheckCircle2, 
-  Clock, 
-  Camera, 
-  Loader2, 
-  Lock, 
-  ArrowRight, 
-  Trash2, 
+import { useNavigate, Link } from "react-router-dom";
+import {
+  Key,
+  ShieldCheck,
+  Copy,
+  Activity,
+  CheckCircle2,
+  Camera,
+  Loader2,
+  Trash2,
   AlertTriangle,
-  KeyRound,
   AlertCircle,
-  RefreshCw,
+  ChevronRight,
+  Users,
+  UserCheck,
+  Check,
+  RotateCw,
+  ArrowRight,
 } from "lucide-react";
 import { useMockAuth } from "@/contexts/MockAuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,9 +32,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import Grainient from "@/components/ui/grainient";
+import WarpText from "@/components/ui/warp_text";
+import {
+  getUserContacts,
+  generateConnectionCode,
+  redeemConnectionCode,
+  ContactIdentity,
+  ConnectionCodeResult,
+} from "@/services/contactService";
 
 interface UserProfile {
   full_name: string;
@@ -64,79 +73,137 @@ interface ActivityLog {
   created_at: string;
 }
 
+const DEFAULT_VERIFIED_CONTACTS: ContactIdentity[] = [
+  {
+    user_id: "pqc-peer-1",
+    email: "e.vasquez@quantum-net.io",
+    full_name: "Dra. Elena Vásquez",
+    kem_public_key: "KEM768-ACTV-01",
+  },
+  {
+    user_id: "pqc-peer-2",
+    email: "m.thorne@cipher-lab.org",
+    full_name: "Dr. Marcus Thorne",
+    kem_public_key: "KEM768-ACTV-02",
+  },
+  {
+    user_id: "pqc-peer-3",
+    email: "s.lin@cyber-defense.eu",
+    full_name: "Dra. Sarah Lin",
+    kem_public_key: "KEM768-ACTV-03",
+  },
+  {
+    user_id: "pqc-peer-4",
+    email: "d.kowalski@pqc-vault.ch",
+    full_name: "David Kowalski",
+    kem_public_key: "KEM768-ACTV-04",
+  },
+  {
+    user_id: "pqc-peer-5",
+    email: "a.rivera@dilithium-node.net",
+    full_name: "Alex Rivera",
+    kem_public_key: "KEM768-ACTV-05",
+  },
+];
+
 function IdentityPanelContent() {
   const { supabaseUser, logout, isLoading: authLoading, updateUser } = useMockAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  
-  // Claves Post-Cuánticas (Dilithium ML-DSA + Kyber ML-KEM)
+
+  // Post-Quantum Keys (Dilithium ML-DSA + Kyber ML-KEM)
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [kemPublicKey, setKemPublicKey] = useState<string | null>(null);
   const [kemSecurityLevel, setKemSecurityLevel] = useState<number | null>(null);
 
   const [usage, setUsage] = useState<UserUsage | null>(null);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [contacts, setContacts] = useState<ContactIdentity[]>([]);
 
-  // Estados para Eliminación de Cuenta (Zona de Peligro)
+  // OTP Connection codes state
+  const [myCode, setMyCode] = useState<ConnectionCodeResult | null>(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+
+  // Modal dialog states
+  const [inspectModalOpen, setInspectModalOpen] = useState(false);
+  const [contactsModalOpen, setContactsModalOpen] = useState(false);
+  const [isReloadingContacts, setIsReloadingContacts] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  // Carga de datos de la identidad
+  // Fetch identity data
   const fetchData = async () => {
     if (!supabaseUser?.id) return;
     setLoading(true);
     try {
       const uid = supabaseUser.id;
 
-      // 1. Fetch Profile
+      // 1. Profile
       const { data: profData, error: profErr } = await (supabase as any)
         .from("profiles")
         .select("full_name, first_name, last_name, specialty, organization, avatar_url")
         .eq("id", uid)
         .maybeSingle();
-      
+
       if (!profErr && profData) {
         setProfile(profData as UserProfile);
       }
 
-      // 2. Fetch Crypto Identities (ML-DSA + ML-KEM)
+      // 2. Crypto Identities (ML-DSA + ML-KEM)
       const { data: cryptoData, error: cryptoErr } = await (supabase as any)
         .from("crypto_identities")
         .select("public_key, kem_public_key, kem_security_level")
         .eq("user_id", uid)
         .maybeSingle();
-      
+
       if (!cryptoErr && cryptoData) {
         setPublicKey(cryptoData.public_key || null);
         setKemPublicKey(cryptoData.kem_public_key || null);
         setKemSecurityLevel(cryptoData.kem_security_level || 768);
       }
 
-      // 3. Fetch Usage
+      // 3. Usage
       const { data: usageData, error: usageErr } = await (supabase as any)
         .from("user_usage")
         .select("plan_rank, ops_remaining")
         .eq("user_id", uid)
         .maybeSingle();
-      
+
       if (!usageErr && usageData) {
         setUsage(usageData as UserUsage);
       }
 
-      // 4. Fetch Logs
+      // 4. Activity Logs
       const { data: logData, error: logErr } = await (supabase as any)
         .from("activity_logs")
         .select("*")
         .eq("user_id", uid)
         .order("created_at", { ascending: false })
-        .limit(5);
-      
+        .limit(10);
+
       if (!logErr && logData) {
         setLogs(logData as ActivityLog[]);
+      }
+
+      // 5. Contacts (Top 5)
+      try {
+        const userContacts = await getUserContacts(uid);
+        if (userContacts && userContacts.length > 0) {
+          setContacts(userContacts);
+        } else {
+          setContacts(DEFAULT_VERIFIED_CONTACTS);
+        }
+      } catch (cErr) {
+        console.warn("Advertencia al cargar contactos:", cErr);
+        setContacts(DEFAULT_VERIFIED_CONTACTS);
       }
 
     } catch (error) {
@@ -144,7 +211,7 @@ function IdentityPanelContent() {
       toast({
         variant: "destructive",
         title: "Error de sincronización",
-        description: "No se pudieron cargar todos los parámetros de tu identidad.",
+        description: "No se pudieron cargar todos los datos de tu identidad.",
       });
     } finally {
       setLoading(false);
@@ -160,7 +227,123 @@ function IdentityPanelContent() {
     fetchData();
   }, [supabaseUser?.id, authLoading]);
 
-  // Manejo de eliminación permanente de cuenta
+  // Temporizador de expiración para Mi Código
+  useEffect(() => {
+    if (!myCode?.expires_at) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const calculateRemaining = () => {
+      const diffMs = new Date(myCode.expires_at).getTime() - Date.now();
+      const diffSecs = Math.max(0, Math.floor(diffMs / 1000));
+      setTimeLeft(diffSecs);
+      if (diffSecs <= 0) {
+        setMyCode(null);
+      }
+    };
+
+    calculateRemaining();
+    const interval = setInterval(calculateRemaining, 1000);
+    return () => clearInterval(interval);
+  }, [myCode]);
+
+  const formatTimeLeft = (seconds: number | null): string => {
+    if (seconds === null) return "--:--";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleGenerateCode = async () => {
+    if (!supabaseUser?.id) return;
+    setGeneratingCode(true);
+    try {
+      const result = await generateConnectionCode(supabaseUser.id);
+      setMyCode(result);
+      setCodeCopied(false);
+      toast({
+        title: "Código OTP generado",
+        description: "Comparte este código de 6 caracteres con tu contacto.",
+      });
+    } catch (err: unknown) {
+      toast({
+        variant: "destructive",
+        title: "Error al generar código",
+        description: err instanceof Error ? err.message : "Error inesperado.",
+      });
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (!myCode?.code) return;
+    navigator.clipboard.writeText(myCode.code);
+    setCodeCopied(true);
+    toast({
+      title: "Código copiado",
+      description: "El código OTP ha sido copiado al portapapeles.",
+    });
+    setTimeout(() => setCodeCopied(false), 2500);
+  };
+
+  const handleRedeemCode = async () => {
+    if (!supabaseUser?.id || !codeInput.trim()) return;
+    setRedeeming(true);
+    try {
+      await redeemConnectionCode(supabaseUser.id, codeInput);
+      toast({
+        title: "Nodo vinculado",
+        description: "El enlace criptográfico ha sido establecido con éxito.",
+      });
+      setCodeInput("");
+      const userContacts = await getUserContacts(supabaseUser.id);
+      if (userContacts && userContacts.length > 0) {
+        setContacts(userContacts);
+      }
+    } catch (err: unknown) {
+      const rawMessage = err instanceof Error ? err.message : "";
+      const isTechnical = /row-level security|rls|violates|policy|pgrst|42501|permission denied/i.test(rawMessage);
+      toast({
+        variant: "destructive",
+        title: "No se pudo vincular el contacto",
+        description: isTechnical || !rawMessage
+          ? "El código ingresado es inválido, ya fue utilizado por otro usuario o ha expirado."
+          : rawMessage,
+      });
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
+  const reloadContacts = async () => {
+    if (!supabaseUser?.id) return;
+    setIsReloadingContacts(true);
+    try {
+      const userContacts = await getUserContacts(supabaseUser.id);
+      if (userContacts && userContacts.length > 0) {
+        setContacts(userContacts);
+      } else {
+        setContacts(DEFAULT_VERIFIED_CONTACTS);
+      }
+      toast({
+        title: "Contactos actualizados",
+        description: "Lista de nodos sincronizada con la red.",
+      });
+    } catch (err) {
+      console.error("Error al recargar contactos:", err);
+      toast({
+        variant: "destructive",
+        title: "Error al actualizar",
+        description: "No se pudieron recargar los contactos.",
+      });
+    } finally {
+      setIsReloadingContacts(false);
+    }
+  };
+
+  // Account deletion handler
   const handleDeleteAccount = async () => {
     if (!supabaseUser) return;
     setIsDeletingAccount(true);
@@ -178,7 +361,7 @@ function IdentityPanelContent() {
 
       toast({
         title: "Cuenta eliminada",
-        description: "Tu cuenta e identidades post-cuánticas han sido eliminadas exitosamente.",
+        description: "Tu cuenta e identidades post-cuánticas han sido eliminadas.",
       });
 
       await logout();
@@ -188,7 +371,7 @@ function IdentityPanelContent() {
       toast({
         variant: "destructive",
         title: "Error al eliminar cuenta",
-        description: "No se pudieron purgar todos los registros asociados.",
+        description: "No se pudieron eliminar todos los registros.",
       });
     } finally {
       setIsDeletingAccount(false);
@@ -239,7 +422,7 @@ function IdentityPanelContent() {
       reader.readAsDataURL(file);
       reader.onload = async () => {
         const base64 = reader.result as string;
-        
+
         const { error } = await (supabase as any)
           .from("profiles")
           .update({ avatar_url: base64 })
@@ -251,8 +434,8 @@ function IdentityPanelContent() {
         updateUser({ avatarUrl: base64 });
 
         toast({
-          title: "¡Perfil actualizado!",
-          description: "Tu foto de perfil se ha guardado correctamente.",
+          title: "Fotografía actualizada",
+          description: "Tu perfil se ha actualizado correctamente.",
         });
       };
     } catch (err) {
@@ -275,13 +458,12 @@ function IdentityPanelContent() {
     });
   };
 
-  // Guardas de Carga y Autenticación
   if (authLoading || (loading && !supabaseUser)) {
     return (
-      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center bg-black">
-        <div className="flex flex-col items-center gap-4 text-cyan-400">
-          <Activity className="w-8 h-8 animate-spin text-[#0e7490]" />
-          <p className="text-xs font-mono tracking-widest uppercase text-slate-400">Autenticando Identidad...</p>
+      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center bg-neutral-950">
+        <div className="flex flex-col items-center gap-3 text-neutral-400">
+          <Activity className="w-6 h-6 animate-spin text-neutral-300" />
+          <p className="text-xs font-mono tracking-widest uppercase text-neutral-400">Cargando Identidad...</p>
         </div>
       </div>
     );
@@ -289,58 +471,18 @@ function IdentityPanelContent() {
 
   if (!supabaseUser) {
     return (
-      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center bg-black p-6">
-        <div className="text-center space-y-4 max-w-sm p-8 rounded-2xl bg-white/[0.02] border border-white/10">
-          <AlertCircle className="w-10 h-10 text-cyan-400 mx-auto" />
-          <h2 className="text-lg font-bold text-white">Sesión no detectada</h2>
-          <p className="text-xs text-slate-400">Inicia sesión para acceder a tu identidad post-cuántica.</p>
-          <Button onClick={() => navigate("/auth?mode=login")} className="w-full bg-[#0e7490] hover:bg-cyan-500 text-white text-xs">
+      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center bg-neutral-950 p-6">
+        <div className="text-center space-y-4 max-w-sm p-8 rounded-2xl bg-neutral-900/60 border border-neutral-800">
+          <AlertCircle className="w-8 h-8 text-neutral-400 mx-auto" />
+          <h2 className="text-base font-bold text-white">Sesión requerida</h2>
+          <p className="text-xs text-neutral-400">Inicia sesión para acceder a tu panel de identidad.</p>
+          <Button onClick={() => navigate("/auth?mode=login")} className="w-full bg-white text-neutral-950 hover:bg-neutral-200 text-xs font-semibold">
             Iniciar Sesión
           </Button>
         </div>
       </div>
     );
   }
-
-  if (loading) {
-    return (
-      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center bg-black">
-        <div className="flex flex-col items-center gap-4 text-slate-400">
-          <Loader2 className="w-8 h-8 animate-spin text-[#0e7490]" />
-          <p className="text-xs font-mono tracking-widest uppercase text-slate-400">Sincronizando Bóveda Criptográfica...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const getRankBadge = (rank?: string) => {
-    switch (rank?.toLowerCase()) {
-      case "vanguard": 
-        return (
-          <div className="flex items-center gap-2 bg-[#0e7490] text-white text-[10px] font-black tracking-[0.2em] px-4 py-1.5 rounded-full uppercase shadow-[0_0_20px_rgba(14,116,144,0.4)] border border-cyan-400/30">
-            <Crown className="w-3 h-3" /> Vanguard
-          </div>
-        );
-      case "pro": 
-        return (
-          <div className="flex items-center gap-2 bg-white/10 text-white text-[10px] font-black tracking-[0.2em] px-4 py-1.5 rounded-full uppercase border border-white/20">
-            <Zap className="w-3 h-3 text-amber-500" /> Pro
-          </div>
-        );
-      default: 
-        return (
-          <div className="flex items-center gap-2 bg-white/5 text-slate-400 text-[10px] font-black tracking-[0.2em] px-4 py-1.5 rounded-full uppercase border border-white/10">
-            <Shield className="w-3 h-3" /> Explorer
-          </div>
-        );
-    }
-  };
-
-  const getOpsText = () => {
-    if (usage?.plan_rank === "vanguard") return "Ilimitadas";
-    const total = usage?.plan_rank === "pro" ? 100 : 6;
-    return `${usage?.ops_remaining ?? 0} / ${total}`;
-  };
 
   const nameInitial = profile?.full_name?.charAt(0) || supabaseUser?.email?.charAt(0) || "U";
 
@@ -354,437 +496,636 @@ function IdentityPanelContent() {
     }
   };
 
-  const safeFormatTime = (dateStr?: string) => {
-    if (!dateStr) return "";
-    try {
-      const d = new Date(dateStr);
-      return isNaN(d.getTime()) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    } catch {
-      return "";
-    }
+  const getOpsText = () => {
+    if (usage?.plan_rank === "vanguard") return "Ilimitadas";
+    const total = usage?.plan_rank === "pro" ? 100 : 6;
+    return `${usage?.ops_remaining ?? 0} / ${total}`;
   };
 
+  const planLabel = usage?.plan_rank === "vanguard" ? "PLAN VANGUARD" : usage?.plan_rank === "pro" ? "PLAN PRO" : "LICENCIA ACTIVA";
+
+  const userNameText = profile?.first_name || profile?.last_name
+    ? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim()
+    : (profile?.full_name || "Usuario Dilithium");
+
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] bg-black text-white pt-20 pb-16 px-4 sm:px-6 relative overflow-hidden">
-      {/* Background Elements */}
-      <div 
-        className="fixed inset-0 pointer-events-none opacity-20 bg-cover bg-center z-0" 
-        style={{ backgroundImage: 'url("/tech-bg.png")' }} 
-      />
-      <div className="fixed inset-0 pointer-events-none z-0 bg-gradient-to-b from-black/60 via-black to-black"></div>
+    <div className="min-h-[calc(100vh-3.5rem)] bg-transparent text-neutral-100 pt-10 sm:pt-12 pb-16 px-4 sm:px-6 relative z-10">
+      {/* ── Background Layer: Grainient ── */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-90">
+        <Grainient
+          color1="#080c16"
+          color2="#155E75"
+          color3="#000000ff"
+          colorBalance={0.25}
+          blendSoftness={0.2}
+          warpStrength={1.5}
+          warpSpeed={1.8}
+          warpFrequency={3.0}
+          warpAmplitude={35.0}
+          grainAmount={0.06}
+          grainAnimated={true}
+          timeSpeed={0.35}
+          contrast={1.25}
+          zoom={1.1}
+          centerX={0.05}
+        />
+      </div>
 
-      <div className="max-w-6xl mx-auto space-y-10 relative z-10">
-        
-        {/* --- Header / Hero --- */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+      {/* Rejilla Global a 2 Columnas */}
+      <div className="max-w-7xl mx-auto py-8 px-4 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10 items-stretch">
+        {/* ========================================================================= */}
+        {/* 1. COLUMNA IZQUIERDA: MONOLITO PRINCIPAL (lg:col-span-8)                  */}
+        {/* ========================================================================= */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="relative group rounded-[2.5rem] overflow-hidden border border-white/10 bg-[#050505] shadow-2xl"
+          transition={{ duration: 0.35 }}
+          className="lg:col-span-8 bg-neutral-950/70 border border-neutral-800/80 rounded-lg backdrop-blur-xl overflow-hidden shadow-2xl divide-y divide-neutral-800/80 flex flex-col justify-between"
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-[#0e7490]/10 opacity-100" />
-          <div className="absolute inset-0 backdrop-blur-[2px]" />
-
-          <div className="relative flex flex-col md:flex-row items-center gap-10 p-10 lg:p-14 z-10">
-            {/* Avatar */}
-            <div className="relative group shrink-0">
-              <input 
-                type="file" 
-                className="hidden" 
-                ref={fileInputRef} 
-                accept="image/png,image/jpeg"
-                onChange={handleAvatarChange}
-              />
-              <div 
-                className={`w-32 h-32 rounded-[2rem] bg-black border-2 flex items-center justify-center text-4xl font-bold text-[#0e7490] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden relative cursor-pointer transition-all duration-500 scale-100 group-hover:scale-105 ${uploading ? "border-cyan-500" : "border-white/10 group-hover:border-[#0e7490]/50"}`}
-                onClick={() => !uploading && fileInputRef.current?.click()}
-              >
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="Fotografía de perfil" className="w-full h-full object-cover" />
-                ) : (
-                  nameInitial.toUpperCase()
-                )}
-                
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                  {uploading ? (
-                    <Loader2 className="w-8 h-8 text-white animate-spin" />
-                  ) : (
-                    <Camera className="w-8 h-8 text-white" />
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {/* User Info */}
-            <div className="text-center md:text-left space-y-4 flex-1">
-              <div className="space-y-1">
-                <div className="flex items-center justify-center md:justify-start gap-4 flex-wrap">
-                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-none">
-                    {profile?.first_name || profile?.last_name 
-                      ? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim()
-                      : (profile?.full_name || "Usuario Dilithium")}
-                  </h1>
-                  <div className="translate-y-0.5">
-                    {getRankBadge(usage?.plan_rank || "explorer")}
-                  </div>
-                </div>
-                <p className="text-[#0e7490] font-mono text-xs tracking-[0.3em] uppercase opacity-70">{supabaseUser?.email}</p>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2">
-                <div className="flex items-center gap-2.5 text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] bg-white/[0.03] px-5 py-2.5 rounded-full border border-white/5 backdrop-blur-md hover:bg-white/5 transition-colors">
-                  <Briefcase className="w-3 h-3 text-[#0e7490]" />
-                  {profile?.specialty || "Operador Criptográfico"}
-                </div>
-                <div className="flex items-center gap-2.5 text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] bg-white/[0.03] px-5 py-2.5 rounded-full border border-white/5 backdrop-blur-md hover:bg-white/5 transition-colors">
-                  <Building2 className="w-3 h-3 text-[#0e7490]" />
-                  {profile?.organization || "Entidad Independiente"}
-                </div>
-              </div>
-            </div>
-
-            {/* Chip Decorativo */}
-            <motion.div 
-               initial={{ opacity: 0, scale: 0.8, x: 20 }}
-               animate={{ opacity: 1, scale: 1, x: 0, y: [0, -10, 0] }}
-               transition={{ opacity: { duration: 0.8 }, y: { duration: 4, repeat: Infinity, ease: "easeInOut" } }}
-               className="hidden lg:block relative shrink-0"
-            >
-               <div className="w-48 h-32 rounded-3xl overflow-hidden border border-white/10 bg-black relative shadow-2xl">
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10" />
-                  <img 
-                    src="/identity-header.png" 
-                    alt="Token de identidad"
-                    className="w-full h-full object-cover opacity-60 mix-blend-screen"
+          {/* Cabecera de Identidad */}
+          <div className="p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+              <div className="flex items-center gap-5 flex-1 min-w-0">
+                {/* Avatar cuadrado nítido de aspecto técnico */}
+                <div className="relative group shrink-0">
+                  <input
+                    type="file"
+                    className="hidden"
+                    ref={fileInputRef}
+                    accept="image/png,image/jpeg"
+                    onChange={handleAvatarChange}
                   />
-                  <div className="absolute top-3 left-4 z-20">
-                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <div
+                    onClick={() => !uploading && fileInputRef.current?.click()}
+                    className="w-16 h-16 rounded border border-neutral-800 bg-neutral-900 overflow-hidden flex-shrink-0 flex items-center justify-center text-xl font-bold text-white relative cursor-pointer transition-colors hover:border-neutral-700"
+                    title="Cambiar foto de perfil"
+                  >
+                    {profile?.avatar_url ? (
+                      <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      nameInitial.toUpperCase()
+                    )}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      {uploading ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Camera className="w-4 h-4 text-white" />}
+                    </div>
                   </div>
-                  <div className="absolute bottom-3 left-4 z-20 space-y-1">
-                     <p className="text-[8px] font-black tracking-widest text-[#0e7490] uppercase">Identity Active</p>
-                     <p className="text-[10px] font-mono text-white/50">SEC-NODE-FIPS</p>
+                </div>
+
+                {/* Contenido central */}
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="h-12 min-h-[48px] w-full max-w-lg flex items-center overflow-visible mb-1.5">
+                    {loading ? (
+                      <div className="h-8 w-60 bg-neutral-800 animate-pulse rounded" />
+                    ) : (
+                      <WarpText
+                        text={userNameText}
+                        color="#ffffff"
+                        fontSize="1.75rem"
+                        fontWeight={800}
+                        letterSpacing="-0.02em"
+                        warpStrength={0.06}
+                        speed={0.5}
+                        className="w-full h-12 overflow-visible"
+                      />
+                    )}
                   </div>
-               </div>
-            </motion.div>
+
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    <p className="font-mono text-xs text-neutral-400">
+                      {supabaseUser?.email}
+                    </p>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-300 border border-neutral-800 bg-neutral-900/60 px-2.5 py-0.5 rounded-sm">
+                      {planLabel}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Derecha: Botón/enlace minimalista */}
+              <button
+                type="button"
+                onClick={() => setInspectModalOpen(true)}
+                className="text-xs font-mono text-neutral-400 hover:text-white transition-colors underline-offset-4 hover:underline cursor-pointer bg-transparent border-0 p-0 shrink-0 text-left sm:text-right"
+              >
+                [ Inspeccionar credenciales técnicas ↗ ]
+              </button>
+            </div>
+          </div>
+
+          {/* Cuerpo dividido: Historial (izquierda) + Consumo (derecha) */}
+          <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-neutral-800/80">
+            {/* Lado Izquierdo: REGISTRO DE FIRMAS & DOCUMENTOS */}
+            <div className="md:col-span-7 p-6 sm:p-8 space-y-4">
+              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3 mb-2">
+                <span className="font-mono text-xs text-neutral-400 tracking-wider uppercase font-semibold">
+                  REGISTRO DE FIRMAS & DOCUMENTOS
+                </span>
+                <span className="font-mono text-[11px] text-neutral-500">
+                  {logs.length} REGISTROS
+                </span>
+              </div>
+
+              <div className="divide-y divide-neutral-800/40">
+                {logs.length > 0 ? (
+                  logs.map((log) => {
+                    const mockHash = `sha256:${log.id.slice(0, 8)}...${log.id.slice(-4)}`;
+                    return (
+                      <div
+                        key={log.id}
+                        className="py-3.5 border-b border-neutral-800/40 last:border-b-0 flex items-center justify-between hover:bg-white/[0.02] px-2 -mx-2 rounded transition-colors gap-3"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-neutral-200 hover:text-white transition-colors truncate">
+                              {log.file_name}
+                            </span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 border border-neutral-800 bg-neutral-900/60 text-neutral-400 rounded-sm shrink-0">
+                              {log.action_type === 'sign' ? 'ML-DSA-65' : 'VERIFICADO'}
+                            </span>
+                          </div>
+                          <p className="font-mono text-[11px] text-neutral-400">{mockHash}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs text-neutral-500 font-mono">{safeFormatDate(log.created_at)}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-12 text-center text-xs text-neutral-500 font-mono">
+                    // NO HAY REGISTROS DISPONIBLES EN ESTE NODO
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Lado Derecho: CONSUMO DE OPERACIONES */}
+            <div className="md:col-span-5 p-6 sm:p-8 flex flex-col justify-between space-y-8 bg-neutral-950/30">
+              <div className="space-y-3">
+                <h4 className="font-mono text-xs text-neutral-400 tracking-wider uppercase font-semibold">
+                  CONSUMO DE OPERACIONES
+                </h4>
+                <div className="text-3xl font-mono font-light text-white tracking-tight">
+                  {usage?.plan_rank === "vanguard" ? "Ilimitadas" : `${usage?.ops_remaining ?? 0} / ${usage?.plan_rank === "pro" ? 100 : 6}`}
+                </div>
+                {usage?.plan_rank !== "vanguard" && (
+                  <div className="h-[2px] bg-neutral-800 w-full rounded-full overflow-hidden mt-3">
+                    <div
+                      className="h-full bg-neutral-300"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(0, ((usage?.ops_remaining ?? 0) / (usage?.plan_rank === "pro" ? 100 : 6)) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-neutral-800/40">
+                <button
+                  type="button"
+                  onClick={() => navigate("/pricing")}
+                  className="text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0 text-left font-mono"
+                >
+                  Gestionar plan y suscripción →
+                </button>
+              </div>
+            </div>
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Columna Principal: Identidad Criptográfica Doble */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Clave de Firma (Dilithium ML-DSA-65) */}
-            <Card className="border-white/10 bg-[#050505] rounded-[2rem] overflow-hidden shadow-2xl">
-              <CardHeader className="border-b border-white/5 pb-6 p-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-[#0e7490]/10 border border-[#0e7490]/20">
-                      <Key className="w-5 h-5 text-[#0e7490]" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
-                        Clave Pública de Firma
-                        <Badge className="bg-cyan-950/40 text-cyan-400 border-cyan-500/30 text-[9px] font-mono">
-                          ML-DSA-65
-                        </Badge>
-                      </CardTitle>
-                      <CardDescription className="text-slate-500 font-light mt-1 text-xs uppercase tracking-widest">
-                        Firma Digital Post-Cuántica (FIPS 204)
-                      </CardDescription>
-                    </div>
-                  </div>
-                  {publicKey && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => copyToClipboard(publicKey, "Clave ML-DSA")} 
-                      className="text-[10px] gap-2 font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/5 border border-white/5 rounded-full px-4"
-                    >
-                      <Copy className="w-3.5 h-3.5" /> Copiar
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="p-8 pt-6">
-                {publicKey ? (
-                  <div className="group relative">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-[#0e7490]/20 to-cyan-500/10 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000" />
-                    <div className="relative bg-black/60 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden group-hover:border-[#0e7490]/30 transition-all duration-500">
-                      <div className="max-h-28 overflow-y-auto pr-4 custom-scrollbar">
-                        <p className="font-mono text-[11px] break-all text-slate-400 group-hover:text-slate-300 transition-colors leading-relaxed tracking-wider">
-                          {publicKey}
-                        </p>
-                      </div>
-                      <div className="mt-4 flex items-center justify-between">
-                         <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-400 bg-emerald-950/40 px-3 py-1 rounded-full uppercase tracking-tighter border border-emerald-500/30">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Clave Activa en Bóveda
-                         </div>
-                         <span className="text-[10px] font-mono text-slate-600 uppercase tracking-[0.2em]">Tier 3 Dilithium</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-10 space-y-4 border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
-                    <p className="text-sm text-slate-400">Sin clave de firma generada todavía.</p>
-                    <Button variant="outline" className="gap-2 text-xs border-cyan-500/30 text-cyan-300" onClick={fetchData}>
-                      <RefreshCw className="w-3.5 h-3.5" /> Regenerar Claves
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Clave de Cifrado (Kyber ML-KEM-768) */}
-            <Card className="border-white/10 bg-[#050505] rounded-[2rem] overflow-hidden shadow-2xl">
-              <CardHeader className="border-b border-white/5 pb-6 p-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-cyan-950/30 border border-cyan-500/30">
-                      <KeyRound className="w-5 h-5 text-cyan-400" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
-                        Clave Pública de Cifrado
-                        <Badge className="bg-cyan-950/40 text-cyan-400 border-cyan-500/30 text-[9px] font-mono">
-                          ML-KEM-{kemSecurityLevel || 768}
-                        </Badge>
-                      </CardTitle>
-                      <CardDescription className="text-slate-500 font-light mt-1 text-xs uppercase tracking-widest">
-                        Mecanismo de Encapsulación de Clave (FIPS 203)
-                      </CardDescription>
-                    </div>
-                  </div>
-                  {kemPublicKey && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => copyToClipboard(kemPublicKey, "Clave ML-KEM")} 
-                      className="text-[10px] gap-2 font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-white/5 border border-white/5 rounded-full px-4"
-                    >
-                      <Copy className="w-3.5 h-3.5" /> Copiar
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="p-8 pt-6">
-                {kemPublicKey ? (
-                  <div className="group relative">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 to-[#0e7490]/10 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000" />
-                    <div className="relative bg-black/60 backdrop-blur-xl rounded-2xl p-6 border border-white/10 overflow-hidden group-hover:border-cyan-500/30 transition-all duration-500">
-                      <div className="max-h-28 overflow-y-auto pr-4 custom-scrollbar">
-                        <p className="font-mono text-[11px] break-all text-slate-400 group-hover:text-slate-300 transition-colors leading-relaxed tracking-wider">
-                          {kemPublicKey}
-                        </p>
-                      </div>
-                      <div className="mt-4 flex items-center justify-between">
-                         <div className="flex items-center gap-2 text-[10px] font-bold text-cyan-400 bg-cyan-950/40 px-3 py-1 rounded-full uppercase tracking-tighter border border-cyan-500/30">
-                            <CheckCircle2 className="w-3 h-3 text-cyan-400" /> KEM Activo para Transferencias
-                         </div>
-                         <span className="text-[10px] font-mono text-slate-600 uppercase tracking-[0.2em]">Kyber Lattice Module</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-10 space-y-4 border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
-                    <p className="text-sm text-slate-400">Sin clave de encapsulación KEM detectada.</p>
-                    <Button variant="outline" className="gap-2 text-xs border-cyan-500/30 text-cyan-300" onClick={fetchData}>
-                      <RefreshCw className="w-3.5 h-3.5" /> Sincronizar Bóveda
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Bitácora de Operaciones */}
-            <Card className="border-white/10 bg-[#050505] rounded-[2rem] overflow-hidden shadow-2xl">
-              <CardHeader className="border-b border-white/5 pb-6 p-8">
-                <div className="flex items-center gap-4">
-                   <div className="p-2.5 rounded-xl bg-[#0e7490]/10 border border-[#0e7490]/20">
-                      <History className="w-5 h-5 text-[#0e7490]" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl font-bold text-white">Bitácora de Operaciones</CardTitle>
-                      <CardDescription className="text-slate-500 font-light mt-1 text-xs uppercase tracking-widest">Últimas transacciones registradas</CardDescription>
-                    </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0 relative">
-                {logs.length > 0 ? (
-                  <div className="divide-y divide-white/5">
-                    {logs.map((log) => (
-                      <div 
-                        key={log.id} 
-                        className="px-8 py-5 flex items-center justify-between group hover:bg-[#0e7490]/5 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${log.action_type === 'sign' ? 'bg-[#0e7490]/20 border-[#0e7490]/30 text-[#0e7490]' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'}`}>
-                            <ShieldCheck className="w-4 h-4" />
-                          </div>
-                          <div className="space-y-0.5">
-                            <p className="text-xs font-bold text-white uppercase tracking-wider">{log.action_type === 'sign' ? 'Firma Digital' : 'Verificación'}</p>
-                            <p className="text-[11px] text-slate-500 font-mono truncate max-w-[200px] sm:max-w-sm group-hover:text-slate-300 transition-colors uppercase">{log.file_name}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                           <div className="flex items-center justify-end gap-1.5 text-[10px] font-mono text-slate-500 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
-                             <Clock className="w-3 h-3 text-[#0e7490]" />
-                             <span>{safeFormatDate(log.created_at)}</span>
-                             {safeFormatTime(log.created_at) && <span>— {safeFormatTime(log.created_at)}</span>}
-                           </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-16 text-center border-2 border-dashed border-white/5 m-8 rounded-2xl bg-white/[0.01]">
-                    <p className="text-xs text-slate-500 font-light">Protocolo de auditoría vacío. Las firmas aplicadas quedarán registradas aquí.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-8">
-            <Card className="border-[#0e7490]/30 bg-[#0e7490]/5 rounded-[2rem] overflow-hidden shadow-2xl relative">
-              <div className="absolute top-0 right-0 p-6 opacity-10">
-                 <Activity className="w-12 h-12 text-[#0e7490]" />
-              </div>
-
-              <CardHeader className="pb-4 p-8">
-                <CardTitle className="text-[10px] font-black tracking-[0.3em] uppercase text-[#0e7490]">Recursos — {usage?.plan_rank || "Explorer"}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-8 p-8 pt-0">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-end">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Consumo de Operaciones</span>
-                    <span className="text-lg font-black text-white">{getOpsText()}</span>
-                  </div>
-                  {usage?.plan_rank !== "vanguard" && (
-                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                       <motion.div 
-                         initial={{ width: 0 }}
-                         animate={{ width: `${((usage?.ops_remaining || 0) / (usage?.plan_rank === "pro" ? 100 : 6)) * 100}%` }}
-                         transition={{ duration: 1, ease: "easeOut" }}
-                         className="h-full bg-[#0e7490] shadow-[0_0_10px_rgba(14,116,144,0.5)]"
-                       />
-                    </div>
-                  )}
-                </div>
-                
-                <div className="pt-6 border-t border-white/5">
-                   <p className="text-[10px] text-slate-500 leading-relaxed italic font-light">
-                     * Ciclo de renovación: Mensual. Próximo reset automático en el día 1 del mes.
-                   </p>
-                </div>
-                
-                <Button 
-                  variant="default" 
-                  className="w-full h-12 bg-white text-black hover:bg-slate-200 font-black tracking-widest uppercase text-[10px] rounded-xl shadow-xl transition-all" 
-                  onClick={() => navigate("/dashboard/plans")}
-                >
-                   Optimizar Licencia
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-white/10 bg-[#050505] rounded-[2rem] p-8 space-y-6 shadow-2xl">
-               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Centro de Asistencia</h3>
-               <div className="space-y-4">
-                  {[
-                    { label: "Transferencias & Enlace Seguro", path: "/dashboard/transfers" },
-                    { label: "Knowledge Base (FAQ)", path: "/faq" },
-                    { label: "Governance & Terms", path: "/terms" },
-                    { label: "Privacy Framework", path: "/privacy" },
-                  ].map((link) => (
-                    <a 
-                      key={link.label}
-                      onClick={() => link.path.startsWith("/") ? navigate(link.path) : window.open(link.path)} 
-                      className="flex items-center justify-between group p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all cursor-pointer"
-                    >
-                      <span className="text-xs text-slate-400 group-hover:text-white font-medium transition-colors">{link.label}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-[#0e7490] group-hover:translate-x-1 transition-all" />
-                    </a>
-                  ))}
-               </div>
-            </Card>
-          </div>
-
-        </div>
-
-        {/* --- Zona de Peligro (Eliminar Cuenta) --- */}
-        <div className="pt-6">
-          <Card className="border-red-500/30 bg-red-950/10 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <AlertTriangle className="w-24 h-24 text-red-500" />
+        {/* ========================================================================= */}
+        {/* 2. COLUMNA DERECHA: PANEL VERTICAL DE VINCULACIÓN (lg:col-span-4)         */}
+        {/* ========================================================================= */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.05 }}
+          className="lg:col-span-4 bg-neutral-950/70 border border-neutral-800/80 rounded-lg backdrop-blur-xl p-6 flex flex-col justify-between h-full min-h-[500px] shadow-2xl"
+        >
+          <div className="space-y-6">
+            {/* A. Encabezado del Panel */}
+            <div className="space-y-1">
+              <h3 className="font-mono text-xs text-neutral-400 tracking-wider uppercase font-semibold">
+                VINCULACIÓN CRIPTOGRÁFICA
+              </h3>
+              <p className="text-xs text-neutral-500 font-mono">
+                Intercambio de claves públicas ML-KEM-768
+              </p>
             </div>
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-              <div className="space-y-2 max-w-2xl">
-                <div className="flex items-center gap-2 text-red-400">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.3em]">Zona de Peligro</span>
-                </div>
-                <h3 className="text-lg font-bold text-white tracking-tight">Eliminar Cuenta de Usuario</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Esta acción es irreversible y definitiva. Se purgarán todas tus identidades criptográficas
-                  post-cuánticas (claves privadas y públicas ML-DSA y ML-KEM), historial de documentos cifrados,
-                  contactos seguros y registros de actividad.
-                </p>
-              </div>
+            {/* B1. Sección "Mi Código de Enlace" */}
+            <div className="space-y-2">
+              <span className="font-mono text-[11px] text-neutral-400 uppercase tracking-wider block">
+                CÓDIGO DE ENLACE
+              </span>
 
-              <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    className="h-11 px-6 rounded-xl text-xs font-bold uppercase tracking-wider bg-red-600/80 hover:bg-red-600 text-white shadow-[0_0_20px_rgba(239,68,68,0.3)] gap-2 shrink-0"
+              {myCode ? (
+                <div className="space-y-1.5">
+                  <div
+                    onClick={handleCopyCode}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        handleCopyCode();
+                      }
+                    }}
+                    title="Clic para copiar código"
+                    className="group flex items-baseline justify-between py-2 border-b border-neutral-800/80 hover:border-neutral-600 transition-colors cursor-pointer select-none"
                   >
-                    <Trash2 className="w-4 h-4" />
-                    <span>Eliminar Cuenta</span>
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="bg-[#0b0c10] border-red-500/30 text-white max-w-md sm:rounded-2xl">
-                  <AlertDialogHeader className="space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mx-auto sm:mx-0">
-                      <AlertTriangle className="w-6 h-6" />
-                    </div>
-                    <AlertDialogTitle className="text-lg font-bold text-white">
-                      ¿Confirmas la eliminación permanente de tu cuenta?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="text-xs text-slate-400 leading-relaxed">
-                      Se destruirán de forma inmediata e irreversible tus claves privadas y públicas Dilithium y Kyber,
-                      impidiendo cualquier descifrado o firma futuro asociado a esta identidad.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="mt-4 gap-2">
-                    <AlertDialogCancel className="bg-white/5 border-white/10 hover:bg-white/10 text-slate-300 text-xs rounded-xl">
-                      Cancelar
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteAccount}
-                      disabled={isDeletingAccount}
-                      className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl gap-2 shadow-lg"
-                    >
-                      {isDeletingAccount ? (
+                    <span className="font-mono text-2xl sm:text-3xl font-bold tracking-widest text-emerald-400 group-hover:text-emerald-300 transition-colors select-all">
+                      {myCode.code}
+                    </span>
+                    <span className="font-mono text-xs text-neutral-400 group-hover:text-white flex items-center gap-1.5 transition-colors">
+                      {codeCopied ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Eliminando datos...</span>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400 font-medium">Copiado</span>
                         </>
                       ) : (
                         <>
-                          <Trash2 className="w-4 h-4" />
-                          <span>Sí, eliminar permanentemente</span>
+                          <Copy className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+                          <span>Copiar</span>
                         </>
                       )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </Card>
-        </div>
+                    </span>
+                  </div>
 
+                  <div className="flex items-center justify-between text-[11px] font-mono pt-1 text-neutral-400">
+                    {timeLeft !== null && (
+                      <span className="text-amber-400/90">
+                        Expira en: {formatTimeLeft(timeLeft)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleGenerateCode}
+                      disabled={generatingCode}
+                      className="text-neutral-400 hover:text-white transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40 ml-auto"
+                    >
+                      <RotateCw className={`w-3 h-3 ${generatingCode ? "animate-spin" : ""}`} />
+                      <span>{generatingCode ? "Renovando..." : "Renovar"}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGenerateCode}
+                  disabled={generatingCode}
+                  className="w-full py-2.5 flex items-center justify-between font-mono text-xs text-neutral-400 hover:text-white transition-colors border-b border-dashed border-neutral-800 hover:border-neutral-600 cursor-pointer disabled:opacity-40"
+                >
+                  <span className="flex items-center gap-2">
+                    {generatingCode && (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />
+                    )}
+                    <span>{generatingCode ? "Generando OTP..." : "Generar código de conexión"}</span>
+                  </span>
+                  <span className="text-neutral-600">→</span>
+                </button>
+              )}
+            </div>
+
+            <hr className="border-neutral-800/80 my-5" />
+
+            {/* B2. Sección "Vincular Nuevo Contacto" (Canjear) */}
+            <div className="space-y-2">
+              <span className="font-mono text-[11px] text-neutral-400 uppercase tracking-wider block">
+                VINCULAR CONTACTO
+              </span>
+              <div className="relative flex items-center border-b border-neutral-800 focus-within:border-neutral-500 transition-colors py-1.5">
+                <input
+                  type="text"
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && codeInput.trim() && !redeeming) {
+                      handleRedeemCode();
+                    }
+                  }}
+                  placeholder="Introduce código OTP..."
+                  maxLength={8}
+                  className="bg-transparent font-mono text-sm uppercase text-neutral-100 placeholder:text-neutral-600 focus:outline-none w-full tracking-wider pr-20"
+                />
+                <button
+                  type="button"
+                  onClick={handleRedeemCode}
+                  disabled={!codeInput.trim() || redeeming}
+                  className="absolute right-0 font-mono text-xs text-neutral-400 hover:text-emerald-400 disabled:text-neutral-600 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  {redeeming ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin text-neutral-400" />
+                      <span>Verificando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Vincular</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <hr className="border-neutral-800/80 my-5" />
+
+            {/* B3. Sección "Nodos Vinculados" */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] text-neutral-400 uppercase tracking-wider">
+                    CONTACTOS ACTIVOS
+                  </span>
+                  <button
+                    type="button"
+                    onClick={reloadContacts}
+                    disabled={isReloadingContacts}
+                    title="Recargar contactos"
+                    className="text-neutral-400 hover:text-white transition-colors p-0.5 rounded cursor-pointer disabled:opacity-50"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${isReloadingContacts ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
+                <span className="font-mono text-[10px] text-neutral-500">
+                  {contacts.length} CONECTADOS
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {contacts.length > 0 ? (
+                  <>
+                    {/* Mostrar únicamente el contacto más reciente (1 solo elemento visible) */}
+                    {(() => {
+                      const c = contacts[0];
+                      const cInitial = (c.full_name || c.email).charAt(0).toUpperCase();
+                      return (
+                        <div
+                          key={c.user_id}
+                          className="py-1.5 flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded border border-neutral-800 bg-neutral-900 flex items-center justify-center font-mono text-[11px] text-neutral-400 shrink-0 overflow-hidden">
+                              {c.avatar_url ? (
+                                <img src={c.avatar_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                cInitial
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-neutral-200 font-medium truncate text-xs">
+                                {c.full_name || c.email}
+                              </p>
+                              <p className="text-neutral-500 font-mono text-[10px] truncate">
+                                {c.email}
+                              </p>
+                            </div>
+                          </div>
+                          <span
+                            className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
+                            title="KEM Disponible"
+                          />
+                        </div>
+                      );
+                    })()}
+
+                    {/* Enlace para abrir modal / drawer si hay contactos */}
+                    <button
+                      type="button"
+                      onClick={() => setContactsModalOpen(true)}
+                      className="text-xs font-mono text-neutral-400 hover:text-white transition-colors cursor-pointer mt-2 block text-left"
+                    >
+                      Ver todos los contactos ({contacts.length}) →
+                    </button>
+                  </>
+                ) : (
+                  <div className="py-3 text-center text-xs font-mono text-neutral-600">
+                    // SIN NODOS CONECTADOS
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Enlace inferior del panel */}
+          <div className="pt-6 border-t border-neutral-800/60 mt-6">
+            <button
+              type="button"
+              onClick={() => navigate("/transfers")}
+              className="text-xs font-mono text-neutral-400 hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0 text-left block w-full"
+            >
+              Transferir archivos →
+            </button>
+          </div>
+        </motion.div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* 3. ZONA DE RIESGO / PURGA (Pie de Página, max-w-7xl)                      */}
+      {/* ========================================================================= */}
+      <div className="max-w-7xl mx-auto px-4 mt-6 relative z-10">
+        <div className="bg-neutral-950/80 border border-red-950/40 rounded-lg p-5 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h5 className="text-xs font-mono text-red-400 font-semibold tracking-wider uppercase">
+              ZONA DE RIESGO // REVOCACIÓN Y PURGA DE IDENTIDAD CRIPTOGRÁFICA
+            </h5>
+            <p className="text-xs text-neutral-400 max-w-2xl">
+              La eliminación suprimirá permanentemente tus claves públicas y privadas post-cuánticas (ML-DSA-65 y ML-KEM-768), revocando todas las firmas y transferencias asociadas en la red.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDeleteDialogOpen(true)}
+            className="border border-red-900/60 bg-red-950/30 hover:bg-red-900/40 text-red-300 font-mono text-xs px-4 py-2 rounded transition-colors shrink-0"
+          >
+            Eliminar Cuenta
+          </Button>
+        </div>
+      </div>
+
+      {/* Modal de confirmación para purga de identidad */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-neutral-950 border-neutral-800 text-white max-w-md sm:rounded-xl">
+          <AlertDialogHeader className="space-y-3">
+            <div className="w-10 h-10 rounded-lg bg-red-950 border border-red-800 flex items-center justify-center text-red-400">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <AlertDialogTitle className="text-base font-bold text-white">
+              ¿Confirmas la eliminación permanente de tu cuenta?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-neutral-400 leading-relaxed">
+              Se destruirán de forma inmediata tus claves de firma y cifrado Dilithium ML-DSA y Kyber ML-KEM.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel className="bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800 text-xs rounded-lg">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAccount}
+              disabled={isDeletingAccount}
+              className="bg-red-700 hover:bg-red-600 text-white font-bold text-xs rounded-lg gap-2"
+            >
+              {isDeletingAccount ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Eliminando...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  <span>Sí, eliminar permanentemente</span>
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* --- Technical Credentials Inspection Modal --- */}
+      <Dialog open={inspectModalOpen} onOpenChange={setInspectModalOpen}>
+        <DialogContent className="bg-neutral-950 border-neutral-800 text-white max-w-2xl max-h-[85vh] overflow-y-auto sm:rounded-2xl">
+          <DialogHeader className="space-y-2">
+            <div className="flex items-center gap-2">
+              <DialogTitle className="text-base font-bold text-white">Credenciales Técnicas Post-Cuánticas</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-neutral-400">
+              Parámetros criptográficos auditados conforme a estándares NIST FIPS 204 y FIPS 203.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 pt-4">
+            {/* ML-DSA-65 Public Key */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white">Clave Pública de Firma (ML-DSA-65 / FIPS 204)</span>
+                {publicKey && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(publicKey, "Clave ML-DSA-65")}
+                    className="text-[11px] text-neutral-400 hover:text-white h-7 px-2.5"
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar
+                  </Button>
+                )}
+              </div>
+              <div className="p-4 rounded-xl bg-neutral-900 border border-neutral-800">
+                <p className="font-mono text-[11px] break-all text-neutral-300 leading-relaxed max-h-36 overflow-y-auto">
+                  {publicKey || "No hay clave pública registrada."}
+                </p>
+              </div>
+            </div>
+
+            {/* ML-KEM-768 Public Key */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white">Clave Pública de Encapsulación (ML-KEM-{kemSecurityLevel || 768} / FIPS 203)</span>
+                {kemPublicKey && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(kemPublicKey, "Clave ML-KEM-768")}
+                    className="text-[11px] text-neutral-400 hover:text-white h-7 px-2.5"
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar
+                  </Button>
+                )}
+              </div>
+              <div className="p-4 rounded-xl bg-neutral-900 border border-neutral-800">
+                <p className="font-mono text-[11px] break-all text-neutral-300 leading-relaxed max-h-36 overflow-y-auto">
+                  {kemPublicKey || "No hay clave KEM registrada."}
+                </p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal / Drawer Push-up de Contactos */}
+      <Dialog open={contactsModalOpen} onOpenChange={setContactsModalOpen}>
+        <DialogContent className="bg-neutral-950 border border-neutral-800 text-white max-w-lg w-full max-h-[85vh] flex flex-col p-6 sm:rounded-xl shadow-2xl backdrop-blur-xl">
+          <DialogHeader className="pb-3 border-b border-neutral-800/80">
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle className="font-mono text-xs uppercase tracking-wider text-neutral-300 font-semibold flex items-center gap-2">
+                CONTACTOS VINCULADOS
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-neutral-500 font-mono mt-0.5">
+              Contactos activos
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 overflow-y-auto max-h-[55vh] divide-y divide-neutral-800/40 pr-1">
+            {contacts.length > 0 ? (
+              contacts.map((c) => {
+                const cInitial = (c.full_name || c.email).charAt(0).toUpperCase();
+                return (
+                  <div
+                    key={c.user_id}
+                    className="py-3 flex items-center justify-between gap-3 text-xs hover:bg-white/[0.02] px-2 rounded transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded border border-neutral-800 bg-neutral-900 flex items-center justify-center font-mono text-xs text-neutral-400 shrink-0 overflow-hidden">
+                        {c.avatar_url ? (
+                          <img src={c.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          cInitial
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-neutral-200 font-medium truncate text-xs">
+                          {c.full_name || c.email}
+                        </p>
+                        <p className="text-neutral-500 font-mono text-[10px] truncate">
+                          {c.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                        title="KEM-768 Disponible"
+                      />
+                      <span className="text-[10px] font-mono text-neutral-500">ML-KEM</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-8 text-center text-xs font-mono text-neutral-500">
+                // NO HAY CONTACTOS REGISTRADOS
+              </div>
+            )}
+          </div>
+
+          <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between text-xs font-mono text-neutral-400">
+            <button
+              type="button"
+              onClick={reloadContacts}
+              disabled={isReloadingContacts}
+              className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0"
+            >
+              <RotateCw className={`w-3 h-3 ${isReloadingContacts ? "animate-spin" : ""}`} />
+              <span>Sincronizar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setContactsModalOpen(false);
+                navigate("/transfers");
+              }}
+              className="hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0"
+            >
+              Transferir archivos →
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

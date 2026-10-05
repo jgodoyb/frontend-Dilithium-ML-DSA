@@ -81,7 +81,7 @@ const FirmaSection = () => {
       {/* Header */}
       <div className="space-y-2">
         <span className="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold block">
-          // FASE_02 // SIGNATURE_GENERATION_PROTOCOL
+          // FASE 02 // SIGNATURE GENERATION PROTOCOL
         </span>
         <h3 className="text-xl sm:text-2xl font-bold text-zinc-100">
           Proceso de Firma (ML-DSA.Sign)
@@ -99,15 +99,14 @@ const FirmaSection = () => {
             <button
               key={s.num}
               onClick={() => setActiveStep(i)}
-              className={`p-3 text-left font-mono border rounded-none sm:rounded-sm transition-colors flex flex-col justify-between min-h-[70px] ${
-                isActive
+              className={`p-3 text-left font-mono border rounded-none sm:rounded-sm transition-colors flex flex-col justify-between min-h-[70px] ${isActive
                   ? s.isRejectStep
                     ? "border-rose-500 bg-rose-950/20 text-rose-300"
                     : "border-cyan-400 bg-cyan-950/20 text-cyan-300 font-bold"
                   : s.isRejectStep
-                  ? "border-zinc-800 bg-zinc-950 text-rose-400/70 hover:border-rose-500/50"
-                  : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
-              }`}
+                    ? "border-zinc-800 bg-zinc-950 text-rose-400/70 hover:border-rose-500/50"
+                    : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                }`}
             >
               <div className="flex items-center justify-between w-full mb-1">
                 <span className="text-[10px] tracking-wider">[{s.numStr}]</span>
@@ -131,20 +130,18 @@ const FirmaSection = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
           <div className="flex items-center gap-3">
             <div
-              className={`w-9 h-9 border flex items-center justify-center font-mono ${
-                step.isRejectStep
+              className={`w-9 h-9 border flex items-center justify-center font-mono ${step.isRejectStep
                   ? "border-rose-500/40 bg-rose-950/20 text-rose-400"
                   : "border-cyan-500/40 bg-cyan-950/20 text-cyan-400"
-              }`}
+                }`}
             >
               <StepIcon className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span
-                  className={`font-mono text-[10px] uppercase tracking-widest font-bold ${
-                    step.isRejectStep ? "text-rose-400" : "text-cyan-400"
-                  }`}
+                  className={`font-mono text-[10px] uppercase tracking-widest font-bold ${step.isRejectStep ? "text-rose-400" : "text-cyan-400"
+                    }`}
                 >
                   // PASO [{step.numStr}]
                 </span>
@@ -182,11 +179,10 @@ const FirmaSection = () => {
 
         {/* Academic KaTeX block */}
         <div
-          className={`bg-black border p-8 sm:p-10 overflow-x-auto text-center rounded-none sm:rounded-sm space-y-4 ${
-            step.isRejectStep
+          className={`bg-black border p-8 sm:p-10 overflow-x-auto text-center rounded-none sm:rounded-sm space-y-4 ${step.isRejectStep
               ? "border-zinc-800 border-l-2 border-l-rose-500"
               : "border-zinc-800 border-l-2 border-l-cyan-400"
-          }`}
+            }`}
         >
           <KaTeX math={step.formula} display />
           {step.extraFormula && (

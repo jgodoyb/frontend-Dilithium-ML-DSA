@@ -1,21 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Menu,
-  X,
-  User,
-  LogOut,
-  FileSignature,
-  ShieldCheck,
-  CreditCard,
-  FlaskConical,
-  ChevronDown,
-  Compass,
-  Users,
-  Inbox,
-  ArrowLeftRight,
-} from "lucide-react";
+import { User, LogOut, ChevronDown, Menu, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,30 +10,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { useMockAuth } from "@/contexts/MockAuthContext";
 import Footer from "./Footer";
 import { SecureContactsDialog } from "./contacts/SecureContactsDialog";
 import { getPendingDocuments } from "@/services/inboxService";
-
-const publicNavKeys = [
-  { key: "technology", path: "/tecnologia", icon: FlaskConical },
-  { key: "plans", path: "/dashboard/plans", icon: CreditCard },
-  { key: "architect", path: "/architect", icon: Compass },
-  { key: "verify", path: "/dashboard/verify", icon: ShieldCheck },
-];
-
-const protectedNavKeys = [
-  { key: "hub", path: "/dashboard/sign", icon: FileSignature },
-  { key: "transfers", path: "/dashboard/transfers", icon: ArrowLeftRight },
-];
+import { KineticNav } from "@/components/ui/KineticNav";
 
 const AppShell = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, user, supabaseUser, logout } = useMockAuth();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [contactsOpen, setContactsOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [scrolled, setScrolled] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -62,11 +36,6 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
       .catch((err) => console.warn("Error al consultar documentos pendientes:", err));
   }, [supabaseUser?.id]);
 
-  const navItems = (isAuthenticated
-    ? [...publicNavKeys, ...protectedNavKeys]
-    : publicNavKeys
-  ).filter((item) => isAuthenticated || (item.key !== "transfers" && item.key !== "hub"));
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
@@ -74,22 +43,21 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top navbar */}
-      <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between">
+      {/* Top Header Bar */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
           scrolled
-            ? "bg-background/95 backdrop-blur-lg border-b border-border"
-            : "bg-background/80 backdrop-blur-sm"
+            ? "bg-background/95 backdrop-blur-lg border-b border-border py-2.5"
+            : "bg-background/80 backdrop-blur-sm py-3"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          {/* Brand */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-10 flex items-center justify-between">
+          {/* 1. Original Q-PROOF SYSTEMS Brand Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            {/* New Logo SVG Placeholder based on the image */}
             <div className="relative flex items-center justify-center w-7 h-7">
               <svg viewBox="0 0 100 100" className="w-full h-full text-[#155e75] fill-current">
-                <polygon points="50 5, 95 25, 95 75, 50 95, 5 75, 5 25" opacity="0.2" />
+                <polygon points="50 5, 95 25, 95 75, 50 95, 5 25" opacity="0.2" />
                 <path d="M50 20 A 30 30 0 1 0 75 66 L 85 76 L 90 71 L 80 61 A 30 30 0 0 0 50 20 Z" />
                 <circle cx="50" cy="50" r="12" fill="none" stroke="currentColor" strokeWidth="8" />
               </svg>
@@ -107,239 +75,94 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
             </div>
           </Link>
 
-          {/* Desktop nav items */}
-          <div className="hidden md:flex items-center justify-center gap-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    isActive
-                      ? "text-primary bg-primary/10"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>
-                    {item.key === "technology" ? "Tecnología" : 
-                     item.key === "plans" ? "Planes" : 
-                     item.key === "architect" ? "El Arquitecto" : 
-                     item.key === "verify" ? "Centro de Verificación" : 
-                     item.key === "hub" ? "Portal de Firmas" :
-                     item.key === "transfers" ? "Transferencias" : item.key}
-                  </span>
-                  {item.key === "transfers" && pendingCount > 0 && (
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-bold text-black animate-pulse">
-                      {pendingCount}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Right side actions */}
-          <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center justify-end gap-3">
-              <AnimatePresence mode="wait">
-                {isAuthenticated ? (
-                  <motion.div
-                    key="avatar"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex items-center gap-2"
-                  >
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="relative flex items-center gap-2 rounded-full pl-1 pr-2.5 py-1 hover:bg-secondary/50 transition-colors focus:outline-none">
-                          <div className="relative">
-                            <Avatar className="w-8 h-8 ring-1 ring-white/10">
-                              {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} className="object-cover" />}
-                              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                                {user?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                              </AvatarFallback>
-                            </Avatar>
-                            {pendingCount > 0 && (
-                              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-black text-black ring-2 ring-black shadow-[0_0_10px_rgba(6,182,212,0.8)] animate-pulse">
-                                {pendingCount}
-                              </span>
-                            )}
-                          </div>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56 bg-[#090a0f] border-white/10 text-white">
-                        <div className="px-3 py-2">
-                          <p className="text-sm font-medium text-white">{user?.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                        </div>
-                        <DropdownMenuSeparator className="bg-white/10" />
-                        <DropdownMenuItem onClick={() => navigate("/dashboard/identity")} className="cursor-pointer focus:bg-white/5">
-                          <User className="w-4 h-4 mr-2 text-slate-300" />
-                          Mi Identidad
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-white/10" />
-                        <DropdownMenuItem onClick={() => { logout(); navigate("/"); }} className="text-destructive focus:text-destructive cursor-pointer focus:bg-red-500/10">
-                          <LogOut className="w-4 h-4 mr-2" />
-                          Cerrar Sesión
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="buttons"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex items-center gap-2"
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => navigate("/auth?mode=login")}
-                    >
-                      {isAuthenticated ? (
-                        "Acceso"
-                      ) : (
-                        "Iniciar Sesión"
+          {/* 2. Right Side Controls: Profile Dropdown + Minimalist Hamburger Menu Trigger */}
+          <div className="flex items-center gap-2.5">
+            {isAuthenticated && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="relative flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-secondary/50 transition-colors focus:outline-none">
+                    <div className="relative">
+                      <Avatar className="w-7 h-7 ring-1 ring-white/10">
+                        {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} className="object-cover" />}
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                          {user?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {pendingCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-cyan-500 px-1 text-[8px] font-black text-black ring-2 ring-black shadow-[0_0_8px_rgba(6,182,212,0.8)] animate-pulse">
+                          {pendingCount}
+                        </span>
                       )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => navigate("/auth?mode=register")}
-                    >
-                      Registrarse
-                    </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    </div>
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-[#090a0f] border-white/10 text-white shadow-2xl">
+                  <div className="px-3 py-2">
+                    <p className="text-sm font-medium text-white">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                  </div>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem onClick={() => navigate("/dashboard/identity")} className="cursor-pointer focus:bg-white/5 text-xs">
+                    <User className="w-4 h-4 mr-2 text-slate-300" />
+                    Mi Identidad
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem onClick={() => { logout(); navigate("/"); }} className="text-destructive focus:text-destructive cursor-pointer focus:bg-red-500/10 text-xs">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Cerrar Sesión
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
-            {/* Mobile toggle */}
-            <div className="flex md:hidden items-center">
-              <button
-                className="p-2 -mr-2 text-slate-300 hover:text-white transition-colors rounded-lg hover:bg-white/5 focus:outline-none"
-                onClick={() => setMobileOpen(!mobileOpen)}
-                aria-label="Abrir menú"
-              >
-                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-            </div>
+            {/* Minimalist 3 Horizontal Lines (Hamburger) Menu Trigger Button */}
+            <button
+              onClick={() => setIsMenuOpen((prev) => !prev)}
+              className="relative z-50 p-2 text-neutral-300 hover:text-white transition-all duration-300 focus:outline-none rounded-lg hover:bg-white/10 active:scale-95"
+              aria-label={isMenuOpen ? "Cerrar Menú" : "Abrir Menú"}
+            >
+              <div className="w-5 h-5 flex items-center justify-center">
+                {isMenuOpen ? (
+                  <X className="w-5 h-5 text-white transform rotate-0 transition-transform duration-300" />
+                ) : (
+                  <Menu className="w-5 h-5 text-neutral-200 transform transition-transform duration-300" />
+                )}
+              </div>
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Mobile menu */}
-        <AnimatePresence>
-          {mobileOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="md:hidden overflow-hidden bg-background/98 backdrop-blur-lg border-b border-border"
-            >
-              <div className="px-4 pb-4 space-y-1">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-2 w-full px-3 py-2.5 text-sm rounded-md ${
-                        isActive
-                          ? "text-primary bg-primary/10"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {item.key === "technology" ? "Tecnología" : 
-                       item.key === "plans" ? "Planes" : 
-                       item.key === "architect" ? "El Arquitecto" : 
-                       item.key === "verify" ? "Centro de Verificación" : 
-                       item.key === "hub" ? "Portal de Firmas" : item.key}
-                    </Link>
-                  );
-                })}
+      {/* KineticNav Drawer Panel */}
+      <KineticNav
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onToggle={() => setIsMenuOpen((prev) => !prev)}
+        hideDefaultHeaderButton={true}
+      />
 
-                <div className="pt-2 border-t border-border mt-2">
-                  {isAuthenticated ? (
-                    <>
-                      <div className="px-3 py-2">
-                        <p className="text-sm font-medium">{user?.name}</p>
-                        <p className="text-xs text-muted-foreground">{user?.email}</p>
-                      </div>
-                      <Link
-                        to="/dashboard/identity"
-                        onClick={() => setMobileOpen(false)}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground rounded-md"
-                      >
-                        <User className="w-4 h-4" />
-                        Mi Identidad
-                      </Link>
-                      <button
-                        onClick={() => { logout(); navigate("/"); setMobileOpen(false); }}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-destructive rounded-md text-left"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        Cerrar Sesión
-                      </button>
-                    </>
-                  ) : (
-                      <div className="flex gap-2 px-3 py-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 text-xs"
-                          onClick={() => { navigate("/auth?mode=login"); setMobileOpen(false); }}
-                        >
-                          Iniciar Sesión
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1 text-xs"
-                          onClick={() => { navigate("/auth?mode=register"); setMobileOpen(false); }}
-                        >
-                          Registrarse
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-            </motion.div>
-          )}
+      {/* Main Page Content */}
+      <main className="flex-1 pt-16">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="w-full h-full"
+          >
+            {children}
+          </motion.div>
         </AnimatePresence>
-      </nav>
-
-      {/* Page content with smooth route transitions */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.25, ease: "easeInOut" }}
-        >
-          {children}
-        </motion.div>
-      </AnimatePresence>
+      </main>
 
       {/* Global footer */}
       <Footer />
 
       {/* Diálogo de Contactos Seguros */}
       <SecureContactsDialog open={contactsOpen} onOpenChange={setContactsOpen} />
-
     </div>
   );
 };
