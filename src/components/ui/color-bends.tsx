@@ -3,12 +3,13 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-type ColorBendsProps = {
+export interface ColorBendsProps {
+    colors?: string[]; // Array de colores hex ej: ['#4c1d95', '#1e1b4b', '#06b6d4']
+    speed?: number;    // Velocidad del flujo (ej: 0.2 - 0.5)
+    intensity?: number;// Intensidad/brillo de la luz (ej: 0.4 - 1.0)
     className?: string;
     style?: React.CSSProperties;
     rotation?: number;
-    speed?: number;
-    colors?: string[];
     transparent?: boolean;
     autoRotate?: number;
     scale?: number;
@@ -18,9 +19,8 @@ type ColorBendsProps = {
     parallax?: number;
     noise?: number;
     iterations?: number;
-    intensity?: number;
     bandWidth?: number;
-};
+}
 
 const MAX_COLORS = 8 as const;
 
@@ -82,16 +82,16 @@ void main() {
             vec2 warped = s + disp * gain;
             float m1 = length(warped + sin(5.0 * warped.y * uFrequency - 3.0 * t + float(i)) / 4.0);
             float m = mix(m0, m1, kMix);
-            float w = 1.0 - exp(-uBandWidth / exp(uBandWidth * m));
+            float w = exp(-uBandWidth * 0.35 * m * m);
             sumCol += uColors[i] * w;
             cover = max(cover, w);
       }
       col = clamp(sumCol, 0.0, 1.0);
-      a = uTransparent > 0 ? cover : 1.0;
+      a = uTransparent > 0 ? clamp(cover, 0.0, 1.0) : 1.0;
     } else {
         vec2 s = q;
         for (int k = 0; k < 3; ++k) {
-            s -= 0.01;
+            s -= 0.03;
             vec2 r = sin(1.5 * (s.yx * uFrequency) + 2.0 * cos(s * uFrequency));
             float m0 = length(r + sin(5.0 * r.y * uFrequency - 3.0 * t + float(k)) / 4.0);
             float kBelow = clamp(uWarpStrength, 0.0, 1.0);
@@ -101,9 +101,9 @@ void main() {
             vec2 warped = s + disp * gain;
             float m1 = length(warped + sin(5.0 * warped.y * uFrequency - 3.0 * t + float(k)) / 4.0);
             float m = mix(m0, m1, kMix);
-            col[k] = 1.0 - exp(-uBandWidth / exp(uBandWidth * m));
+            col[k] = exp(-uBandWidth * 0.35 * m * m);
         }
-        a = uTransparent > 0 ? max(max(col.r, col.g), col.b) : 1.0;
+        a = uTransparent > 0 ? clamp(max(max(col.r, col.g), col.b), 0.0, 1.0) : 1.0;
     }
 
     col *= uIntensity;
@@ -202,6 +202,8 @@ export default function ColorBends({
         (renderer as any).outputColorSpace = (THREE as any).SRGBColorSpace;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setClearColor(0x000000, transparent ? 0 : 1);
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.inset = '0';
         renderer.domElement.style.width = '100%';
         renderer.domElement.style.height = '100%';
         renderer.domElement.style.display = 'block';
@@ -335,3 +337,5 @@ export default function ColorBends({
 
     return <div ref={containerRef} className={`w-full h-full relative overflow-hidden ${className}`} style={style} />;
 }
+
+export { ColorBends };

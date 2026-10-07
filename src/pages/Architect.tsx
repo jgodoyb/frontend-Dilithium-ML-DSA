@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { LightRays } from "@/components/ui/LightRays";
 import { TechText } from "@/components/ui/TechText";
@@ -47,13 +47,13 @@ const MILESTONES: NarrativeMilestone[] = [
   {
     index: "01",
     metadata: "NIST FIPS 204 (ML-DSA) · ISO 32000-1 · 2024 — PRESENTE",
-    title: "Núcleo Criptográfico PAdES",
+    title: "Núcleo Post-Cuántico FIPS",
     statement:
-      "Diseño del motor de firma electrónica post-cuántica PAdES (ISO 32000-1) con algoritmos ML-DSA (NIST FIPS 204). Inyección no destructiva de rangos /ByteRange calculados al byte exacto con ejecución local zero-knowledge.",
+      "Arquitectura post-cuántica desacoplada para validación documental y transferencia cifrada. Procesa firmas ML-DSA deterministas y túneles de clave asimétrica ML-KEM en sandbox local, garantizando la custodia privada sin exposición de material criptográfico.",
     specs: [
-      { label: "Algoritmos", value: "ML-DSA-44 / 65 / 87 (FIPS 204)" },
-      { label: "Estándar", value: "ISO 32000-1 PAdES-B-B / CMS AdBE" },
-      { label: "Ejecución", value: "Client-side Zero-Knowledge Sandbox" },
+      { label: "Algoritmos", value: "ML-DSA-65 (FIPS 204) · ML-KEM-768 (FIPS 203)" },
+      { label: "Cumplimiento", value: "ISO 32000-1 PAdES-B-B / RFC 5652 CMS" },
+      { label: "Ejecución", value: "Client-Side Processing / Managed HSM-Style Custody" },
     ],
   },
   {

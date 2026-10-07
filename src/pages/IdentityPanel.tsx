@@ -1,19 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
-  Key,
-  ShieldCheck,
   Copy,
   Activity,
-  CheckCircle2,
   Camera,
   Loader2,
   Trash2,
   AlertTriangle,
   AlertCircle,
-  ChevronRight,
-  Users,
-  UserCheck,
   Check,
   RotateCw,
   ArrowRight,
@@ -30,7 +24,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -497,12 +490,6 @@ function IdentityPanelContent() {
     }
   };
 
-  const getOpsText = () => {
-    if (usage?.plan_rank === "vanguard") return "Ilimitadas";
-    const total = usage?.plan_rank === "pro" ? 100 : 6;
-    return `${usage?.ops_remaining ?? 0} / ${total}`;
-  };
-
   const planLabel = usage?.plan_rank === "vanguard" ? "PLAN VANGUARD" : usage?.plan_rank === "pro" ? "PLAN PRO" : "LICENCIA ACTIVA";
 
   const userNameText = profile?.first_name || profile?.last_name
@@ -532,8 +519,21 @@ function IdentityPanelContent() {
         />
       </div>
 
+      {/* Bloque de Título y Cita */}
+      <div className="max-w-7xl mx-auto px-4 relative z-10 mb-2">
+        <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight uppercase">
+          INFORMACIÓN PERSONAL
+        </h1>
+        <p className="text-base sm:text-lg italic font-light text-neutral-300 tracking-tight mt-1">
+          «La criptografía es la única tecnología que favorece al defensor sobre el atacante.»
+        </p>
+        <p className="text-xs font-mono text-neutral-500 uppercase tracking-widest mt-1">
+          — BRUCE SCHNEIER
+        </p>
+      </div>
+
       {/* Rejilla Global a 2 Columnas */}
-      <div className="max-w-7xl mx-auto py-8 px-4 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10 items-stretch">
+      <div className="max-w-7xl mx-auto pt-3 pb-8 px-4 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10 items-stretch">
         {/* ========================================================================= */}
         {/* 1. COLUMNA IZQUIERDA: MONOLITO PRINCIPAL (lg:col-span-8)                  */}
         {/* ========================================================================= */}
@@ -616,7 +616,7 @@ function IdentityPanelContent() {
           {/* Cuerpo dividido: Historial (izquierda) + Consumo (derecha) */}
           <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-neutral-800/80">
             {/* Lado Izquierdo: REGISTRO DE FIRMAS & DOCUMENTOS */}
-            <div className="md:col-span-7 p-6 sm:p-8 space-y-4">
+            <div className="md:col-span-7 p-6 sm:p-8 flex flex-col justify-start items-stretch h-full space-y-4">
               <div className="flex items-center justify-between border-b border-neutral-800/80 pb-3 mb-2">
                 <span className="font-mono text-xs text-neutral-400 tracking-wider uppercase font-semibold">
                   REGISTRO DE FIRMAS & DOCUMENTOS
@@ -626,48 +626,46 @@ function IdentityPanelContent() {
                 </span>
               </div>
 
-              <div className="divide-y divide-neutral-800/40">
-                {logs.length > 0 ? (
-                  <>
-                    {logs.slice(0, 4).map((log) => {
-                      const mockHash = `sha256:${log.id.slice(0, 8)}...${log.id.slice(-4)}`;
-                      return (
-                        <div
-                          key={log.id}
-                          className="py-3.5 border-b border-neutral-800/40 last:border-b-0 flex items-center justify-between hover:bg-white/[0.02] px-2 -mx-2 rounded transition-colors gap-4"
-                        >
-                          <div className="space-y-1 min-w-0 flex-1 overflow-hidden">
-                            <p
-                              className="text-sm font-medium text-neutral-200 hover:text-white transition-colors truncate"
-                              title={log.file_name}
-                            >
-                              {log.file_name}
-                            </p>
-                            <p className="font-mono text-[11px] text-neutral-400 truncate">{mockHash}</p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <span className="text-xs text-neutral-500 font-mono">{safeFormatDate(log.created_at)}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {logs.length > 4 && (
-                      <button
-                        type="button"
-                        onClick={() => setLogsModalOpen(true)}
-                        className="text-xs font-mono text-neutral-400 hover:text-white transition-colors cursor-pointer mt-3 block text-left"
+              {logs.length === 0 ? (
+                <div className="py-8 text-neutral-500 font-mono text-xs tracking-wider">
+                  // NO HAY REGISTROS DISPONIBLES EN ESTE NODO
+                </div>
+              ) : (
+                <div className="divide-y divide-neutral-800/40">
+                  {logs.slice(0, 4).map((log) => {
+                    const mockHash = `sha256:${log.id.slice(0, 8)}...${log.id.slice(-4)}`;
+                    return (
+                      <div
+                        key={log.id}
+                        className="py-3.5 border-b border-neutral-800/40 last:border-b-0 flex items-center justify-between hover:bg-white/[0.02] px-2 -mx-2 rounded transition-colors gap-4"
                       >
-                        Ver más registros ({logs.length}) →
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <div className="py-12 text-center text-xs text-neutral-500 font-mono">
-                    // NO HAY REGISTROS DISPONIBLES EN ESTE NODO
-                  </div>
-                )}
-              </div>
+                        <div className="space-y-1 min-w-0 flex-1 overflow-hidden">
+                          <p
+                            className="text-sm font-medium text-neutral-200 hover:text-white transition-colors truncate"
+                            title={log.file_name}
+                          >
+                            {log.file_name}
+                          </p>
+                          <p className="font-mono text-[11px] text-neutral-400 truncate">{mockHash}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs text-neutral-500 font-mono">{safeFormatDate(log.created_at)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {logs.length > 4 && (
+                    <button
+                      type="button"
+                      onClick={() => setLogsModalOpen(true)}
+                      className="text-xs font-mono text-neutral-400 hover:text-white transition-colors cursor-pointer mt-3 block text-left"
+                    >
+                      Ver más registros ({logs.length}) →
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Lado Derecho: CONSUMO DE OPERACIONES */}
@@ -695,13 +693,12 @@ function IdentityPanelContent() {
               </div>
 
               <div className="pt-4 border-t border-neutral-800/40">
-                <button
-                  type="button"
-                  onClick={() => navigate("/pricing")}
-                  className="text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0 text-left font-mono"
+                <Link
+                  to="/plans"
+                  className="text-xs font-mono text-neutral-400 hover:text-white transition-colors inline-flex items-center gap-1 mt-4"
                 >
                   Gestionar plan y suscripción →
-                </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -941,7 +938,7 @@ function IdentityPanelContent() {
         <div className="bg-neutral-950/80 border border-red-950/40 rounded-lg p-5 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <h5 className="text-xs font-mono text-red-400 font-semibold tracking-wider uppercase">
-              ZONA DE RIESGO // REVOCACIÓN Y PURGA DE IDENTIDAD CRIPTOGRÁFICA
+              // Eliminar Cuenta
             </h5>
             <p className="text-xs text-neutral-400 max-w-2xl">
               La eliminación suprimirá permanentemente tus claves públicas y privadas post-cuánticas (ML-DSA-65 y ML-KEM-768), revocando todas las firmas y transferencias asociadas en la red.
@@ -1122,7 +1119,7 @@ function IdentityPanelContent() {
               className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer bg-transparent border-0 p-0"
             >
               <RotateCw className={`w-3 h-3 ${isReloadingContacts ? "animate-spin" : ""}`} />
-              <span>Sincronizar</span>
+              <span>Recargar</span>
             </button>
             <button
               type="button"

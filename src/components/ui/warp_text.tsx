@@ -21,8 +21,6 @@ export interface Props {
     style?: CSSProperties;
 }
 
-const getFontValue = (value: string | number): string => (typeof value === 'number' ? `${value}px` : value);
-
 export const WarpText: React.FC<Props> = ({
     text = 'Jorge Godoy Godoy',
     color = '#ffffff',

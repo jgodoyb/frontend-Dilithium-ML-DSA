@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, LogOut, ChevronDown, Menu, X } from "lucide-react";
+import { LogOut, ChevronDown, Menu, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,28 +13,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useMockAuth } from "@/contexts/MockAuthContext";
 import Footer from "./Footer";
 import { SecureContactsDialog } from "./contacts/SecureContactsDialog";
-import { getPendingDocuments } from "@/services/inboxService";
 import { KineticNav } from "@/components/ui/KineticNav";
+import { useTransferNotification } from "@/contexts/TransferNotificationContext";
 
 const AppShell = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, user, supabaseUser, logout } = useMockAuth();
+  const { isAuthenticated, user, logout } = useMockAuth();
+  const { hasUnreadTransfers } = useTransferNotification();
   const [contactsOpen, setContactsOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState<number>(0);
   const [scrolled, setScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-
-  // Consultar cantidad de documentos pendientes
-  useEffect(() => {
-    if (!supabaseUser?.id) {
-      setPendingCount(0);
-      return;
-    }
-    getPendingDocuments(supabaseUser.id)
-      .then((docs) => setPendingCount(docs.length))
-      .catch((err) => console.warn("Error al consultar documentos pendientes:", err));
-  }, [supabaseUser?.id]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -46,11 +35,10 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
     <div className="min-h-screen bg-background text-foreground flex flex-col justify-between">
       {/* Top Header Bar */}
       <header
-        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-          scrolled
+        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${scrolled
             ? "bg-background/95 backdrop-blur-lg border-b border-border py-2.5"
             : "bg-background/80 backdrop-blur-sm py-3"
-        }`}
+          }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-10 flex items-center justify-between">
           {/* 1. Original Q-PROOF SYSTEMS Brand Logo */}
@@ -88,11 +76,6 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
                           {user?.name?.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
-                      {pendingCount > 0 && (
-                        <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-cyan-500 px-1 text-[8px] font-black text-black ring-2 ring-black shadow-[0_0_8px_rgba(6,182,212,0.8)] animate-pulse">
-                          {pendingCount}
-                        </span>
-                      )}
                     </div>
                     <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                   </button>
@@ -102,11 +85,6 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
                     <p className="text-sm font-medium text-white">{user?.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                   </div>
-                  <DropdownMenuSeparator className="bg-white/10" />
-                  <DropdownMenuItem onClick={() => navigate("/dashboard/identity")} className="cursor-pointer focus:bg-white/5 text-xs">
-                    <User className="w-4 h-4 mr-2 text-slate-300" />
-                    Mi Identidad
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-white/10" />
                   <DropdownMenuItem onClick={() => { logout(); navigate("/"); }} className="text-destructive focus:text-destructive cursor-pointer focus:bg-red-500/10 text-xs">
                     <LogOut className="w-4 h-4 mr-2" />
@@ -122,11 +100,14 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
               className="relative z-50 p-2 text-neutral-300 hover:text-white transition-all duration-300 focus:outline-none rounded-lg hover:bg-white/10 active:scale-95"
               aria-label={isMenuOpen ? "Cerrar Menú" : "Abrir Menú"}
             >
-              <div className="w-5 h-5 flex items-center justify-center">
+              <div className="relative w-5 h-5 flex items-center justify-center">
                 {isMenuOpen ? (
                   <X className="w-5 h-5 text-white transform rotate-0 transition-transform duration-300" />
                 ) : (
                   <Menu className="w-5 h-5 text-neutral-200 transform transition-transform duration-300" />
+                )}
+                {hasUnreadTransfers && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-neutral-950 animate-pulse pointer-events-none" />
                 )}
               </div>
             </button>
@@ -140,6 +121,7 @@ const AppShell = ({ children }: { children: React.ReactNode }) => {
         onClose={() => setIsMenuOpen(false)}
         onToggle={() => setIsMenuOpen((prev) => !prev)}
         hideDefaultHeaderButton={true}
+        hasUnreadTransfers={hasUnreadTransfers}
       />
 
       {/* Main Page Content */}

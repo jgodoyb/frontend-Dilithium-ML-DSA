@@ -5,11 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
   Check,
-  Building2,
   Linkedin,
   Github,
   ChevronRight,
-  Terminal,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import Grainient from "@/components/ui/grainient";
@@ -148,9 +146,9 @@ const PlansPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 pt-24 pb-20 relative overflow-hidden font-sans selection:bg-cyan-500/20 selection:text-cyan-300">
+    <div className="min-h-screen bg-black text-neutral-100 pt-24 pb-20 relative overflow-hidden font-sans selection:bg-cyan-500/20 selection:text-cyan-300">
       {/* ── BACKGROUND LAYER (Posicionamiento Fixed y Sin Bloqueo de Flujo) ── */}
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-85">
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-70">
         <Grainient
           color1="#09090b"
           color2="#18181b"
@@ -169,47 +167,47 @@ const PlansPage = () => {
       <div className="relative z-10 max-w-[1300px] mx-auto px-4 sm:px-6">
         {/* ── HEADER TÉCNICO Y LIMPIO ── */}
         <div className="mb-14 sm:mb-20">
-
-
-          <h1 className="text-zinc-100 font-bold tracking-tight text-5xl md:text-7xl mb-6">
+          <h1 className="text-white font-bold tracking-tight text-5xl md:text-7xl mb-6">
             INFRAESTRUCTURA DE DESPLIEGUE.
           </h1>
 
-          <p className="text-zinc-400 font-mono text-sm max-w-2xl leading-relaxed">
+          <p className="text-neutral-400 font-mono text-sm max-w-2xl leading-relaxed">
             Asignación de recursos y licencias para implementaciones ML-DSA.
             Seleccione el nivel de topología requerido para su entorno.
           </p>
         </div>
 
         {/* ── BILLING TOGGLE ── */}
-        <div className="flex items-center gap-4 mb-10 pb-6 border-b border-zinc-800">
+        <div className="flex items-center gap-4 mb-10 pb-6 border-b border-neutral-800/80">
           <div className="flex items-center gap-3 font-mono text-xs">
             <button
               onClick={() => setAnnual(false)}
-              className={`tracking-wider uppercase transition-colors ${!annual ? "text-zinc-100 font-bold" : "text-zinc-500 hover:text-zinc-400"
-                }`}
+              className={`tracking-wider uppercase transition-colors ${
+                !annual ? "text-white font-bold" : "text-neutral-500 hover:text-neutral-400"
+              }`}
             >
               [ MENSUAL ]
             </button>
             <Switch
               checked={annual}
               onCheckedChange={setAnnual}
-              className="data-[state=checked]:bg-cyan-500 data-[state=unchecked]:bg-zinc-800 border border-zinc-700"
+              className="data-[state=checked]:bg-cyan-500 data-[state=unchecked]:bg-neutral-800 border border-neutral-700"
             />
             <button
               onClick={() => setAnnual(true)}
-              className={`tracking-wider uppercase transition-colors flex items-center gap-2 ${annual ? "text-cyan-400 font-bold" : "text-zinc-500 hover:text-zinc-400"
-                }`}
+              className={`tracking-wider uppercase transition-colors flex items-center gap-2 ${
+                annual ? "text-cyan-400 font-bold" : "text-neutral-500 hover:text-neutral-400"
+              }`}
             >
               [ ANUAL ]
-              <span className="text-[10px] text-cyan-400 border border-cyan-500/30 px-1.5 py-0.5 bg-cyan-950/40">
+              <span className="text-[10px] text-cyan-400 border border-cyan-500/30 px-1.5 py-0.5 bg-cyan-950/40 rounded-sm">
                 -20%
               </span>
             </button>
           </div>
         </div>
 
-        {/* ── TARJETAS DE PLANES (BRUTALISTAS Y ESTÁTICAS) ── */}
+        {/* ── TARJETAS DE PLANES (SOBRIAS, BRUTALISTAS) ── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {plans.map((plan) => {
             const price = annual ? plan.annual : plan.monthly;
@@ -218,10 +216,11 @@ const PlansPage = () => {
             return (
               <div
                 key={plan.id}
-                className={`bg-zinc-950 border p-8 flex flex-col relative overflow-hidden transition-colors ${plan.highlighted
-                  ? "border-zinc-700 hover:border-zinc-500"
-                  : "border-zinc-800 hover:border-zinc-600"
-                  }`}
+                className={`bg-neutral-950/70 backdrop-blur-xl border rounded-lg p-8 flex flex-col relative overflow-hidden transition-all duration-300 ${
+                  plan.highlighted
+                    ? "border-neutral-700 shadow-xl shadow-black/40 hover:border-neutral-600"
+                    : "border-neutral-800/80 hover:border-neutral-700"
+                }`}
               >
                 {/* Accent indicator for highlighted card */}
                 {plan.highlighted && (
@@ -230,11 +229,11 @@ const PlansPage = () => {
 
                 {/* Cabecera: Etiqueta superior monoespaciada */}
                 <div className="flex items-center justify-between mb-4">
-                  <span className="font-mono text-xs tracking-wider text-zinc-500">
+                  <span className="font-mono text-xs tracking-wider text-neutral-500">
                     {plan.tier}
                   </span>
                   {plan.highlighted && (
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-cyan-400 border border-cyan-500/30 px-2 py-0.5 bg-cyan-950/20">
+                    <span className="font-mono text-[10px] uppercase tracking-widest text-cyan-400 border border-cyan-500/30 px-2 py-0.5 bg-cyan-950/30 rounded-sm">
                       RECOMENDADO
                     </span>
                   )}
@@ -246,16 +245,16 @@ const PlansPage = () => {
                 </h3>
 
                 {/* Descripción breve */}
-                <p className="text-zinc-400 text-xs font-mono leading-relaxed mb-6">
+                <p className="text-neutral-400 text-xs font-mono leading-relaxed mb-6">
                   {plan.description}
                 </p>
 
                 {/* Precio */}
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-black tabular-nums text-zinc-100">
+                  <span className="text-5xl font-black tabular-nums text-white">
                     €{price}
                   </span>
-                  <span className="font-mono text-xs text-zinc-500 uppercase">
+                  <span className="font-mono text-xs text-neutral-500 uppercase">
                     / mes
                   </span>
                 </div>
@@ -267,14 +266,14 @@ const PlansPage = () => {
                 )}
 
                 {/* Separador */}
-                <div className="border-b border-zinc-800 my-6" />
+                <div className="border-b border-neutral-800/80 my-6" />
 
                 {/* Features */}
                 <div className="mb-8">
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-zinc-500 block mb-4">
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-neutral-500 block mb-4">
                     // ESPECIFICACIONES
                   </span>
-                  <ul className="font-mono text-xs text-zinc-400 space-y-3">
+                  <ul className="font-mono text-xs text-neutral-300 space-y-3">
                     {plan.features.map((feature, idx) => (
                       <li key={idx} className="flex items-start gap-2.5">
                         <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
@@ -284,17 +283,20 @@ const PlansPage = () => {
                   </ul>
                 </div>
 
-                {/* Botón */}
+                {/* Botón Principal de Acción Directo */}
                 <div className="mt-auto pt-4">
                   <button
                     onClick={() =>
                       handleSelectPlan(plan.id, plan.name, plan.ops)
                     }
                     disabled={isCurrent}
-                    className={`w-full rounded-none sm:rounded-sm bg-zinc-900 border border-zinc-700 hover:border-cyan-400 hover:text-cyan-400 transition-colors uppercase text-[10px] tracking-widest py-4 flex items-center justify-center gap-2 font-mono font-bold ${isCurrent
-                      ? "opacity-60 cursor-not-allowed text-zinc-500 border-zinc-800"
-                      : "text-zinc-200"
-                      }`}
+                    className={`w-full rounded-sm transition-colors uppercase text-[10px] tracking-widest py-3.5 flex items-center justify-center gap-2 font-mono font-bold ${
+                      isCurrent
+                        ? "opacity-60 cursor-not-allowed bg-neutral-900 text-neutral-500 border border-neutral-800"
+                        : plan.highlighted
+                        ? "bg-white text-black hover:bg-neutral-200"
+                        : "bg-neutral-900 border border-neutral-700 hover:border-neutral-500 text-neutral-200 hover:text-white"
+                    }`}
                   >
                     <span>{isCurrent ? "[ IDENTIDAD ACTIVA ]" : `[ ${plan.cta.toUpperCase()} ]`}</span>
                     {!isCurrent && <ChevronRight className="w-3.5 h-3.5" />}
@@ -306,21 +308,19 @@ const PlansPage = () => {
         </div>
 
         {/* ── SECCIÓN "ON-PREMISE & SOBERANÍA NACIONAL" (BRUTALISTA) ── */}
-        <div className="mt-28 p-8 md:p-14 border border-zinc-800 bg-zinc-950 relative overflow-hidden">
+        <div className="mt-28 p-8 md:p-14 border border-neutral-800/80 bg-neutral-950/70 backdrop-blur-xl rounded-lg relative overflow-hidden">
           {/* Subtle Background Watermark */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[26rem] font-mono font-black text-zinc-900/20 pointer-events-none select-none italic">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[26rem] font-mono font-black text-neutral-900/30 pointer-events-none select-none italic">
             Q
           </div>
 
           <div className="relative z-10 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div className="space-y-6">
-
-
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-100 leading-tight">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">
                 Despliegues On-Premise & Soberanía Nacional.
               </h2>
 
-              <p className="text-zinc-400 font-mono text-sm leading-relaxed max-w-xl">
+              <p className="text-neutral-400 font-mono text-sm leading-relaxed max-w-xl">
                 Para instituciones que requieren el control físico absoluto de
                 sus activos criptográficos. Arquitecturas de HSM segregadas,
                 auditorías de silicio y consultoría estratégica de alto nivel.
@@ -328,10 +328,10 @@ const PlansPage = () => {
 
               <div className="flex flex-wrap gap-8 pt-2">
                 <div>
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-1">
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-1">
                     ESTÁNDAR
                   </p>
-                  <p className="text-zinc-200 font-mono text-sm font-semibold">
+                  <p className="text-neutral-200 font-mono text-sm font-semibold">
                     ISO 27001 / FIPS 140-3
                   </p>
                 </div>
@@ -339,21 +339,21 @@ const PlansPage = () => {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-cyan-400 mb-1">
                     CUMPLIMIENTO
                   </p>
-                  <p className="text-zinc-200 font-mono text-sm font-semibold">
+                  <p className="text-neutral-200 font-mono text-sm font-semibold">
                     NIST SP 800-204B
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-8 lg:pl-12 lg:border-l border-zinc-800">
+            <div className="space-y-8 lg:pl-12 lg:border-l border-neutral-800/80">
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-3">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 mb-3">
                   // EMAIL DE CONTACTO
                 </p>
                 <a
                   href="mailto:godoyjorgeb@gmail.com"
-                  className="block text-xl sm:text-2xl lg:text-3xl font-mono text-zinc-100 hover:text-cyan-400 transition-colors underline underline-offset-8 decoration-zinc-800 hover:decoration-cyan-400/50 break-all"
+                  className="block text-xl sm:text-2xl lg:text-3xl font-mono text-white hover:text-cyan-400 transition-colors underline underline-offset-8 decoration-neutral-800 hover:decoration-cyan-400/50 break-all"
                 >
                   godoyjorgeb@gmail.com
                 </a>
@@ -364,7 +364,7 @@ const PlansPage = () => {
                   href="https://www.linkedin.com/in/jorge-godoy-beltr%C3%A1n-068622284"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-4 py-2 border border-zinc-800 bg-zinc-900 hover:border-cyan-400 hover:text-cyan-400 text-zinc-400 transition-colors flex items-center gap-2 font-mono text-xs uppercase"
+                  className="px-4 py-2 border border-neutral-800 bg-neutral-900/80 hover:border-neutral-600 hover:text-white text-neutral-400 transition-colors flex items-center gap-2 font-mono text-xs uppercase rounded-sm"
                 >
                   <Linkedin className="w-3.5 h-3.5" />
                   <span>LinkedIn</span>
@@ -373,7 +373,7 @@ const PlansPage = () => {
                   href="https://github.com/jgodoyb"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-4 py-2 border border-zinc-800 bg-zinc-900 hover:border-cyan-400 hover:text-cyan-400 text-zinc-400 transition-colors flex items-center gap-2 font-mono text-xs uppercase"
+                  className="px-4 py-2 border border-neutral-800 bg-neutral-900/80 hover:border-neutral-600 hover:text-white text-neutral-400 transition-colors flex items-center gap-2 font-mono text-xs uppercase rounded-sm"
                 >
                   <Github className="w-3.5 h-3.5" />
                   <span>GitHub</span>
@@ -385,7 +385,7 @@ const PlansPage = () => {
 
         {/* ── SUB FOOTER TAGLINE ── */}
         <div className="mt-16 text-center">
-          <p className="text-[10px] font-mono tracking-[0.4em] uppercase text-zinc-600">
+          <p className="text-[10px] font-mono tracking-[0.4em] uppercase text-neutral-600">
             Q-PROOF MATRIX INFRASTRUCTURE // v2.0-BASELINE
           </p>
         </div>

@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { CustomEase } from "gsap/CustomEase";
 import { Menu, X } from "lucide-react";
 import { useMockAuth } from "@/contexts/MockAuthContext";
+import { useTransferNotification } from "@/contexts/TransferNotificationContext";
 
 // Register GSAP Plugins safely
 if (typeof window !== "undefined") {
@@ -19,17 +20,27 @@ export interface KineticNavProps {
     onClose?: () => void;
     onToggle?: () => void;
     hideDefaultHeaderButton?: boolean;
+    hasUnreadTransfers?: boolean;
 }
 
-export function Component({ isOpen: externalIsOpen, onClose, onToggle, hideDefaultHeaderButton }: KineticNavProps = {}) {
-    return <KineticNav isOpen={externalIsOpen} onClose={onClose} onToggle={onToggle} hideDefaultHeaderButton={hideDefaultHeaderButton} />;
+export function Component({ isOpen: externalIsOpen, onClose, onToggle, hideDefaultHeaderButton, hasUnreadTransfers }: KineticNavProps = {}) {
+    return <KineticNav isOpen={externalIsOpen} onClose={onClose} onToggle={onToggle} hideDefaultHeaderButton={hideDefaultHeaderButton} hasUnreadTransfers={hasUnreadTransfers} />;
 }
 
-export function KineticNav({ isOpen: externalIsOpen, onClose, onToggle, hideDefaultHeaderButton = false }: KineticNavProps = {}) {
+export function KineticNav({
+    isOpen: externalIsOpen,
+    onClose,
+    onToggle,
+    hideDefaultHeaderButton = false,
+    hasUnreadTransfers: externalHasUnreadTransfers,
+}: KineticNavProps = {}) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [internalIsOpen, setInternalIsOpen] = useState(false);
     const { isAuthenticated, user, logout } = useMockAuth();
-    const location = useLocation();
+    const { hasUnreadTransfers: contextHasUnreadTransfers } = useTransferNotification();
+    const hasUnreadTransfers = externalHasUnreadTransfers !== undefined
+        ? externalHasUnreadTransfers
+        : contextHasUnreadTransfers;
     const navigate = useNavigate();
 
     const isMenuOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
@@ -178,7 +189,7 @@ export function KineticNav({ isOpen: externalIsOpen, onClose, onToggle, hideDefa
 
     // Concise single-word routes defined for Sterling Gate Kinetic Menu
     const routes = [
-        { label: "Inicio", path: "/", shape: "1" },
+        { label: "INICIO", path: "/", shape: "1" },
         { label: "TECNOLOGÍA", path: "/technology", shape: "2" },
         { label: "VERIFICAR", path: "/verify", shape: "3" },
         ...(isAuthenticated
@@ -187,6 +198,7 @@ export function KineticNav({ isOpen: externalIsOpen, onClose, onToggle, hideDefa
                 { label: "BUZÓN", path: "/transfers", shape: "5" },
             ]
             : []),
+        { label: "PLANES", path: "/plans", shape: "4" },
         { label: "AUTOR", path: "/architect", shape: "1" },
         ...(isAuthenticated
             ? [
@@ -345,11 +357,16 @@ export function KineticNav({ isOpen: externalIsOpen, onClose, onToggle, hideDefa
                             <nav className="nav-row flex items-center justify-end">
                                 <button
                                     role="button"
-                                    className="p-2 text-neutral-300 hover:text-white transition-colors duration-200 focus:outline-none rounded-lg hover:bg-white/5"
+                                    className="relative p-2 text-neutral-300 hover:text-white transition-colors duration-200 focus:outline-none rounded-lg hover:bg-white/5"
                                     onClick={toggleMenu}
                                     aria-label={isMenuOpen ? "Cerrar Menú" : "Abrir Menú"}
                                 >
-                                    {isMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-neutral-200" />}
+                                    <div className="relative w-5 h-5 flex items-center justify-center">
+                                        {isMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-neutral-200" />}
+                                        {hasUnreadTransfers && (
+                                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-neutral-950 animate-pulse pointer-events-none" />
+                                        )}
+                                    </div>
                                 </button>
                             </nav>
                         </div>
@@ -415,14 +432,22 @@ export function KineticNav({ isOpen: externalIsOpen, onClose, onToggle, hideDefa
                         {/* Concise Single-Word Menu Links List */}
                         <div className="menu-content-wrapper">
                             <ul className="menu-list">
-                                {routes.map((route) => (
-                                    <li key={route.path} className="menu-list-item" data-shape={route.shape}>
-                                        <Link to={route.path} onClick={closeMenu} className="nav-link">
-                                            <span className="nav-link-text">{route.label}</span>
-                                            <div className="nav-link-hover-bg" />
-                                        </Link>
-                                    </li>
-                                ))}
+                                {routes.map((route) => {
+                                    const isTransfers = route.path === "/transfers" || route.path === "/dashboard/transfers";
+                                    return (
+                                        <li key={route.path} className="menu-list-item" data-shape={route.shape}>
+                                            <Link to={route.path} onClick={closeMenu} className="nav-link">
+                                                <span className="nav-link-text inline-flex items-center gap-2.5">
+                                                    {route.label}
+                                                    {isTransfers && hasUnreadTransfers && (
+                                                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-neutral-950 animate-pulse inline-block shrink-0" />
+                                                    )}
+                                                </span>
+                                                <div className="nav-link-hover-bg" />
+                                            </Link>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         </div>
 

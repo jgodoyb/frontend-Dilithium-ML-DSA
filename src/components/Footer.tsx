@@ -18,8 +18,8 @@ const Footer = ({ className }: { className?: string }) => {
   const navLinks = [
     { label: "Tecnología", path: "/technology" },
     { label: "Autor", path: "/architect" },
-    { label: "Verificar", path: "/dashboard/verify" },
-    { label: "Planes", path: "/dashboard/plans" },
+    { label: "Verificar", path: "/verify" },
+    { label: "Planes", path: "/plans" },
     ...(isAuthenticated
       ? [
           { label: "Firmar", path: "/signatures" },

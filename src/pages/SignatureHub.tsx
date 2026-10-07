@@ -14,6 +14,7 @@ import {
   KeyRound,
   Trash2,
   Lock,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -82,6 +83,9 @@ const SignatureHub = () => {
 
   // Estados para documentos transferidos recibidos
   const [activePendingDocId, setActivePendingDocId] = useState<string | null>(null);
+  const [activeStoragePath, setActiveStoragePath] = useState<string | null>(null);
+  const [, setActiveDocName] = useState<string | null>(null);
+  const [activeSenderName, setActiveSenderName] = useState<string | null>(null);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -109,11 +113,26 @@ const SignatureHub = () => {
 
   // Escuchar si viene un documento descifrado desde la Bandeja de Entrada (vía location.state)
   useEffect(() => {
-    const locState = location.state as { incomingFile?: File; pendingDocId?: string } | null;
+    const locState = location.state as {
+      incomingFile?: File;
+      pendingDocId?: string;
+      storagePath?: string;
+      docName?: string;
+      senderName?: string;
+    } | null;
     if (locState?.incomingFile) {
       handleFile(locState.incomingFile);
       if (locState.pendingDocId) {
         setActivePendingDocId(locState.pendingDocId);
+      }
+      if (locState.storagePath) {
+        setActiveStoragePath(locState.storagePath);
+      }
+      if (locState.docName) {
+        setActiveDocName(locState.docName);
+      }
+      if (locState.senderName) {
+        setActiveSenderName(locState.senderName);
       }
       // Limpiar el estado de navegación para evitar recargas accidentales al refrescar
       navigate(location.pathname, { replace: true, state: {} });
@@ -223,8 +242,7 @@ const SignatureHub = () => {
           xrefMap = parseXrefTable(workingBuffer, lastXrefOffset);
         } else {
           throw new Error(
-            `No se pudo leer la estructura del PDF multifirmado: ${
-              scanErr instanceof Error ? scanErr.message : String(scanErr)
+            `No se pudo leer la estructura del PDF multifirmado: ${scanErr instanceof Error ? scanErr.message : String(scanErr)
             }`
           );
         }
@@ -357,11 +375,14 @@ const SignatureHub = () => {
       setSignedPdfBytes(finalSignedPdfBytes);
       setState("success");
 
-      // Si el documento provino de la bandeja de entrada cifrada, actualizar a 'signed'
+      // Si el documento provino de la bandeja de entrada cifrada, actualizar a 'signed' (Requerimiento 1)
       if (activePendingDocId) {
         try {
-          await markDocumentAsSigned(activePendingDocId);
+          await markDocumentAsSigned(activePendingDocId, activeStoragePath || undefined);
           setActivePendingDocId(null);
+          setActiveStoragePath(null);
+          setActiveDocName(null);
+          setActiveSenderName(null);
         } catch (markErr) {
           console.error("Error al marcar documento como firmado:", markErr);
         }
@@ -374,7 +395,7 @@ const SignatureHub = () => {
         description: err.message ?? "No se pudo contactar con el servidor.",
       });
     }
-  }, [rawFile, toast, activePendingDocId]);
+  }, [rawFile, toast, activePendingDocId, activeStoragePath]);
 
   // Animated progress while processing (visual feedback during real fetch)
   useEffect(() => {
@@ -408,19 +429,30 @@ const SignatureHub = () => {
     setProgress(0);
     setSignedPdfBytes(null);
     setActivePendingDocId(null);
+    setActiveStoragePath(null);
+    setActiveDocName(null);
+    setActiveSenderName(null);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
+  // Retirar archivo de la mesa de firma (Requerimiento 3: NUNCA se rechaza ni elimina en Supabase, se mantiene 'pending')
   const removeFile = useCallback((e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+
     setState("idle");
     setFile(null);
     setRawFile(null);
     setProgress(0);
     setSignedPdfBytes(null);
     setActivePendingDocId(null);
+    setActiveStoragePath(null);
+    setActiveDocName(null);
+    setActiveSenderName(null);
     if (inputRef.current) inputRef.current.value = "";
-  }, []);
+
+  }, [activePendingDocId, toast]);
+
+
 
   const handleDownload = useCallback(() => {
     if (!signedPdfBytes || !file) return;
@@ -452,8 +484,8 @@ const SignatureHub = () => {
     state === "error"
       ? "border-red-500/70 shadow-[0_0_30px_rgba(239,68,68,0.3)] bg-red-500/5"
       : dragActive
-      ? "border-[#0e7490] shadow-[0_0_30px_rgba(14,116,144,0.3)] bg-[#0e7490]/10"
-      : "border-white/10 hover:border-white/30 bg-black hover:bg-white/5";
+        ? "border-[#0e7490] shadow-[0_0_30px_rgba(14,116,144,0.3)] bg-[#0e7490]/10"
+        : "border-white/10 hover:border-white/30 bg-black hover:bg-white/5";
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#030303] text-white flex flex-col lg:flex-row w-full overflow-hidden">
@@ -572,9 +604,8 @@ const SignatureHub = () => {
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onClick={() => state === "idle" && inputRef.current?.click()}
-            className={`p-10 sm:p-14 flex flex-col items-center justify-center gap-4 min-h-[280px] relative z-10 ${
-              state === "idle" ? "cursor-pointer" : ""
-            }`}
+            className={`p-10 sm:p-14 flex flex-col items-center justify-center gap-4 min-h-[280px] relative z-10 ${state === "idle" ? "cursor-pointer" : ""
+              }`}
           >
             <AnimatePresence mode="wait">
               {/* -------- IDLE -------- */}
@@ -642,9 +673,16 @@ const SignatureHub = () => {
 
                   {/* Indicador de documento recibido desde bandeja cifrada */}
                   {activePendingDocId && (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[11px] font-mono shadow-sm">
-                      <Lock className="w-3 h-3 text-cyan-400" />
-                      <span>Descifrado con ML-KEM-768 • Pendiente de Firma</span>
+                    <div className="flex flex-col items-center gap-1 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[11px] font-mono shadow-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Lock className="w-3 h-3 text-cyan-400" />
+                        <span>Pendiente de Firma</span>
+                      </div>
+                      {activeSenderName && (
+                        <span className="text-[10px] text-slate-400 font-sans">
+                          Remitente: <strong className="text-cyan-200">{activeSenderName}</strong>
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -730,6 +768,7 @@ const SignatureHub = () => {
               transition={{ duration: 0.25 }}
               className="w-full flex flex-col items-center gap-4 mt-2 max-w-xl"
             >
+              {/* Botón Principal de Firma */}
               <Button
                 size="lg"
                 onClick={handleSign}
@@ -749,7 +788,7 @@ const SignatureHub = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
-              className="flex flex-col items-center gap-4 w-full max-w-sm mt-2"
+              className="flex flex-col items-center gap-3 w-full max-w-sm mt-2"
             >
               <Button
                 size="lg"
@@ -767,6 +806,15 @@ const SignatureHub = () => {
               >
                 <RotateCcw className="w-4 h-4" />
                 Firmar Otro Documento
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/transfers")}
+                className="gap-2 text-neutral-500 hover:text-white hover:bg-white/5 rounded-full px-4 text-[10px] font-mono tracking-wider h-9 transition-all w-full"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Volver a Bandeja de Transferencias
               </Button>
             </motion.div>
           )}

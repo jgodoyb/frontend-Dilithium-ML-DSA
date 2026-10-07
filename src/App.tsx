@@ -23,6 +23,7 @@ import NotFound from "./pages/NotFound";
 import Technology from "./pages/Technology";
 import LatticeBackground from "@/components/LatticeBackground";
 import ScrollToTop from "@/components/ScrollToTop";
+import { TransferNotificationProvider } from "@/contexts/TransferNotificationContext";
 
 const queryClient = new QueryClient();
 
@@ -35,36 +36,39 @@ const App = () => (
           <LatticeBackground />
           <BrowserRouter>
             <ScrollToTop />
-            <Routes>
-            {/* Auth routes */}
-            <Route path="/auth" element={<AppShell><Auth /></AppShell>} />
-            <Route path="/auth/recovery" element={<AppShell><AuthRecovery /></AppShell>} />
+            <TransferNotificationProvider>
+              <Routes>
+              {/* Auth routes */}
+              <Route path="/auth" element={<AppShell><Auth /></AppShell>} />
+              <Route path="/auth/recovery" element={<AppShell><AuthRecovery /></AppShell>} />
 
-            {/* Public routes with shell */}
-            <Route path="/" element={<AppShell><Index /></AppShell>} />
-            <Route path="/architect" element={<AppShell><Architect /></AppShell>} />
-            <Route path="/terms" element={<AppShell><TermsPage /></AppShell>} />
-            <Route path="/legal" element={<AppShell><TermsPage /></AppShell>} />
-            <Route path="/aviso-legal" element={<AppShell><TermsPage /></AppShell>} />
-            <Route path="/privacy" element={<AppShell><PrivacyPage /></AppShell>} />
-            <Route path="/cookies" element={<AppShell><CookiesPage /></AppShell>} />
-            <Route path="/faq" element={<AppShell><FaqPage /></AppShell>} />
-            <Route path="/tecnologia" element={<AppShell><Technology /></AppShell>} />
-            <Route path="/technology" element={<AppShell><Technology /></AppShell>} />
-            <Route path="/dashboard/plans" element={<AppShell><PlansPage /></AppShell>} />
-            <Route path="/dashboard/verify" element={<AppShell><VerificationCenter /></AppShell>} />
-            <Route path="/verify" element={<AppShell><VerificationCenter /></AppShell>} />
+              {/* Public routes with shell */}
+              <Route path="/" element={<AppShell><Index /></AppShell>} />
+              <Route path="/architect" element={<AppShell><Architect /></AppShell>} />
+              <Route path="/terms" element={<AppShell><TermsPage /></AppShell>} />
+              <Route path="/legal" element={<AppShell><TermsPage /></AppShell>} />
+              <Route path="/aviso-legal" element={<AppShell><TermsPage /></AppShell>} />
+              <Route path="/privacy" element={<AppShell><PrivacyPage /></AppShell>} />
+              <Route path="/cookies" element={<AppShell><CookiesPage /></AppShell>} />
+              <Route path="/faq" element={<AppShell><FaqPage /></AppShell>} />
+              <Route path="/tecnologia" element={<AppShell><Technology /></AppShell>} />
+              <Route path="/technology" element={<AppShell><Technology /></AppShell>} />
+              <Route path="/plans" element={<AppShell><PlansPage /></AppShell>} />
+              <Route path="/dashboard/plans" element={<AppShell><PlansPage /></AppShell>} />
+              <Route path="/dashboard/verify" element={<AppShell><VerificationCenter /></AppShell>} />
+              <Route path="/verify" element={<AppShell><VerificationCenter /></AppShell>} />
 
-            {/* Protected routes */}
-            <Route path="/dashboard/sign" element={<AppShell><ProtectedRoute><SignatureHub /></ProtectedRoute></AppShell>} />
-            <Route path="/signatures" element={<AppShell><ProtectedRoute><SignatureHub /></ProtectedRoute></AppShell>} />
-            <Route path="/dashboard/identity" element={<AppShell><ProtectedRoute><IdentityPanel /></ProtectedRoute></AppShell>} />
-            <Route path="/identity" element={<AppShell><ProtectedRoute><IdentityPanel /></ProtectedRoute></AppShell>} />
-            <Route path="/dashboard/transfers" element={<AppShell><ProtectedRoute><TransfersPage /></ProtectedRoute></AppShell>} />
-            <Route path="/transfers" element={<AppShell><ProtectedRoute><TransfersPage /></ProtectedRoute></AppShell>} />
+              {/* Protected routes */}
+              <Route path="/dashboard/sign" element={<AppShell><ProtectedRoute><SignatureHub /></ProtectedRoute></AppShell>} />
+              <Route path="/signatures" element={<AppShell><ProtectedRoute><SignatureHub /></ProtectedRoute></AppShell>} />
+              <Route path="/dashboard/identity" element={<AppShell><ProtectedRoute><IdentityPanel /></ProtectedRoute></AppShell>} />
+              <Route path="/identity" element={<AppShell><ProtectedRoute><IdentityPanel /></ProtectedRoute></AppShell>} />
+              <Route path="/dashboard/transfers" element={<AppShell><ProtectedRoute><TransfersPage /></ProtectedRoute></AppShell>} />
+              <Route path="/transfers" element={<AppShell><ProtectedRoute><TransfersPage /></ProtectedRoute></AppShell>} />
 
-            <Route path="*" element={<NotFound />} />
-            </Routes>
+              <Route path="*" element={<NotFound />} />
+              </Routes>
+            </TransferNotificationProvider>
           </BrowserRouter>
         </MockAuthProvider>
     </TooltipProvider>

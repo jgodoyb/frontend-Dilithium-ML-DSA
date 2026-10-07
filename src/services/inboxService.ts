@@ -241,8 +241,9 @@ export async function getDecryptedDocumentWithUrl(
 
 /**
  * Marca un documento como completado/firmado tras la firma exitosa.
- * Actualiza pending_documents estableciendo status = 'signed' y updated_at = now(),
- * y purga de inmediato el binario cifrado huérfano de Supabase Storage.
+ * 1. Intenta actualizar pending_documents a status = 'signed'.
+ * 2. Si RLS impide la actualización, elimina la fila pendiente para no duplicarla en la bandeja.
+ * 3. Purga el archivo cifrado huérfano de Supabase Storage.
  */
 export async function markDocumentAsSigned(
   documentId: string,
@@ -253,59 +254,63 @@ export async function markDocumentAsSigned(
   try {
     let pathToPurge = storagePath;
     if (!pathToPurge) {
-      const { data } = await (supabase as any)
-        .from("pending_documents")
-        .select("storage_path")
-        .eq("id", documentId)
-        .maybeSingle();
-      pathToPurge = data?.storage_path;
-    }
-
-    const { error } = await (supabase as any)
-      .from("pending_documents")
-      .update({
-        status: "signed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", documentId);
-
-    if (error) {
-      if (error.message?.includes("updated_at") || error.code === "PGRST204") {
-        const { error: fallbackError } = await (supabase as any)
+      try {
+        const { data } = await (supabase as any)
           .from("pending_documents")
-          .update({
-            status: "signed",
-          })
-          .eq("id", documentId);
-        if (fallbackError) {
-          console.warn("Advertencia al actualizar status a 'signed' (fallback):", fallbackError);
-        }
-      } else {
-        console.warn("Advertencia al actualizar status a 'signed' en pending_documents:", error);
-      }
+          .select("storage_path")
+          .eq("id", documentId)
+          .maybeSingle();
+        pathToPurge = data?.storage_path;
+      } catch {}
     }
 
-    // Purgar de Supabase Storage tras completar la firma (Cero Basura)
+    // 1. Purgar de Supabase Storage tras completar la firma (Cero Basura)
     if (pathToPurge) {
       try {
-        const { error: storageErr } = await supabase.storage
+        await supabase.storage
           .from("encrypted_documents")
           .remove([pathToPurge]);
-        if (storageErr) {
-          console.warn("Aviso al purgar binario de Storage tras firma:", storageErr);
-        }
       } catch (storageEx) {
         console.warn("Excepción al purgar archivo en Storage tras firma:", storageEx);
       }
     }
 
-    // Limpiar de la caché de sesión
+    // 2. Limpiar de la caché de sesión
     const cached = decryptedCache.get(documentId);
     if (cached) {
       try {
         URL.revokeObjectURL(cached.objectUrl);
       } catch {}
       decryptedCache.delete(documentId);
+    }
+
+    // 3. Intentar actualizar a status = 'signed' (con updated_at)
+    let affected = false;
+    try {
+      const { data: updateData, error: updateError } = await (supabase as any)
+        .from("pending_documents")
+        .update({
+          status: "signed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", documentId)
+        .select("id");
+
+      if (!updateError && updateData && updateData.length > 0) {
+        affected = true;
+      }
+    } catch (updEx) {
+      console.warn("Advertencia al actualizar status a 'signed':", updEx);
+    }
+
+    // 4. Si la actualización no afectó filas (por políticas RLS), eliminar el registro
+    if (!affected) {
+      try {
+        await (supabase as any)
+          .from("pending_documents")
+          .delete()
+          .eq("id", documentId);
+      } catch {}
     }
   } catch (err) {
     console.warn("Error en markDocumentAsSigned:", err);
@@ -314,8 +319,9 @@ export async function markDocumentAsSigned(
 
 /**
  * Rechaza un documento pendiente recibido.
- * Actualiza pending_documents estableciendo status = 'rejected' y updated_at = now(),
- * y purga de inmediato el binario cifrado huérfano de Supabase Storage.
+ * 1. Intenta actualizar pending_documents estableciendo status = 'rejected' y updated_at = now().
+ * 2. Si las políticas RLS impiden la actualización o no se modifica la fila, intenta eliminar el registro directamente.
+ * 3. Purga de inmediato el binario cifrado de Supabase Storage y limpia la caché.
  */
 export async function rejectPendingDocument(
   documentId: string,
@@ -324,41 +330,31 @@ export async function rejectPendingDocument(
   if (!documentId) return;
 
   try {
-    let pathToPurge = storagePath;
-    if (!pathToPurge) {
-      const { data } = await (supabase as any)
-        .from("pending_documents")
-        .select("storage_path")
-        .eq("id", documentId)
-        .maybeSingle();
-      pathToPurge = data?.storage_path;
+    // 1. Limpiar de la caché de sesión
+    const cached = decryptedCache.get(documentId);
+    if (cached) {
+      try {
+        URL.revokeObjectURL(cached.objectUrl);
+      } catch {}
+      decryptedCache.delete(documentId);
     }
 
-    const { error } = await (supabase as any)
-      .from("pending_documents")
-      .update({
-        status: "rejected",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", documentId);
-
-    if (error) {
-      if (error.message?.includes("updated_at") || error.code === "PGRST204") {
-        const { error: fallbackError } = await (supabase as any)
+    // 2. Obtener la ruta de almacenamiento si no se proporcionó
+    let pathToPurge = storagePath;
+    if (!pathToPurge) {
+      try {
+        const { data } = await (supabase as any)
           .from("pending_documents")
-          .update({
-            status: "rejected",
-          })
-          .eq("id", documentId);
-        if (fallbackError) {
-          console.warn("Advertencia al actualizar status a 'rejected' (fallback):", fallbackError);
-        }
-      } else {
-        console.warn("Advertencia al actualizar status a 'rejected' en pending_documents:", error);
+          .select("storage_path")
+          .eq("id", documentId)
+          .maybeSingle();
+        pathToPurge = data?.storage_path;
+      } catch (pathErr) {
+        console.warn("No se pudo consultar storage_path previo a rechazar:", pathErr);
       }
     }
 
-    // Purgar archivo de Supabase Storage de inmediato (Cero Basura)
+    // 3. Purgar archivo de Supabase Storage de inmediato (Cero Basura)
     if (pathToPurge) {
       try {
         const { error: storageErr } = await supabase.storage
@@ -372,16 +368,55 @@ export async function rejectPendingDocument(
       }
     }
 
-    // Limpiar de la caché de sesión
-    const cached = decryptedCache.get(documentId);
-    if (cached) {
+    // 4. Intentar actualizar status a 'rejected' en pending_documents (con updated_at)
+    let affected = false;
+    try {
+      const { data: updateData, error: updateError } = await (supabase as any)
+        .from("pending_documents")
+        .update({
+          status: "rejected",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", documentId)
+        .select("id");
+
+      if (!updateError && updateData && updateData.length > 0) {
+        affected = true;
+      } else if (updateError) {
+        console.warn("Fallo al actualizar status a 'rejected' en pending_documents:", updateError);
+      }
+    } catch (e) {
+      console.warn("Excepción al intentar actualizar status a 'rejected':", e);
+    }
+
+    // 5. Si no se pudo actualizar el estado (ej. RLS impide UPDATE por receptor o 0 filas afectadas),
+    // eliminar directamente el registro para garantizar que desaparezca
+    if (!affected) {
       try {
-        URL.revokeObjectURL(cached.objectUrl);
-      } catch {}
-      decryptedCache.delete(documentId);
+        const { data: deleteData, error: deleteError } = await (supabase as any)
+          .from("pending_documents")
+          .delete()
+          .eq("id", documentId)
+          .select("id");
+
+        if (!deleteError && deleteData && deleteData.length > 0) {
+          affected = true;
+        } else if (deleteError) {
+          console.warn("Aviso al eliminar documento en fallback de rechazo:", deleteError);
+        }
+      } catch (delEx) {
+        console.warn("Excepción al eliminar en fallback:", delEx);
+      }
+    }
+
+    if (!affected) {
+      console.warn(
+        `[inboxService] Advertencia RLS: No se pudo actualizar ni borrar el registro ${documentId} en Supabase. ` +
+        `Revisa las políticas RLS en la tabla 'pending_documents' para permitir UPDATE y DELETE al 'recipient_id'.`
+      );
     }
   } catch (err) {
-    console.warn("Error en rejectPendingDocument:", err);
+    console.error("Error en rejectPendingDocument:", err);
     throw err;
   }
 }
@@ -434,22 +469,51 @@ export async function deletePendingDocument(
     }
   }
 
-  // 3. Eliminar registro en base de datos (con fallback a status = 'rejected')
-  const { error: deleteError } = await (supabase as any)
-    .from("pending_documents")
-    .delete()
-    .eq("id", documentId);
-
-  if (deleteError) {
-    console.warn("DELETE restringido por RLS en pending_documents, actualizando a 'rejected':", deleteError);
-    const { error: updateError } = await (supabase as any)
+  // 3. Eliminar registro en base de datos
+  let affected = false;
+  try {
+    const { data: deleteData, error: deleteError } = await (supabase as any)
       .from("pending_documents")
-      .update({ status: "rejected" })
-      .eq("id", documentId);
+      .delete()
+      .eq("id", documentId)
+      .select("id");
 
-    if (updateError) {
-      throw new Error(`Error al descartar documento: ${updateError.message}`);
+    if (!deleteError && deleteData && deleteData.length > 0) {
+      affected = true;
+    } else if (deleteError) {
+      console.warn("DELETE restringido por RLS en pending_documents:", deleteError);
     }
+  } catch (delEx) {
+    console.warn("Excepción al ejecutar DELETE en pending_documents:", delEx);
+  }
+
+  // 4. Si el DELETE físico no afectó filas (ej. RLS de Supabase restringe DELETE), actualizar a 'rejected'
+  if (!affected) {
+    try {
+      const { data: updateData, error: updateError } = await (supabase as any)
+        .from("pending_documents")
+        .update({
+          status: "rejected",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", documentId)
+        .select("id");
+
+      if (!updateError && updateData && updateData.length > 0) {
+        affected = true;
+      } else if (updateError) {
+        console.warn("Error al actualizar a 'rejected' como fallback:", updateError);
+      }
+    } catch (updEx) {
+      console.warn("Excepción al actualizar a 'rejected' en fallback:", updEx);
+    }
+  }
+
+  if (!affected) {
+    console.warn(
+      `[inboxService] Advertencia RLS: No se pudo eliminar ni marcar como 'rejected' el documento ${documentId}. ` +
+      `Es necesario configurar la política RLS de DELETE / UPDATE para 'recipient_id' en Supabase.`
+    );
   }
 }
 

@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,6 @@ import {
   ExternalLink,
   CheckCircle2,
   Copy,
-  AlertCircle,
   Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -35,7 +33,6 @@ import { useMockAuth } from "@/contexts/MockAuthContext";
 import {
   getPendingDocuments,
   getDecryptedDocumentWithUrl,
-  rejectPendingDocument,
   deletePendingDocument,
   PendingDocumentItem,
 } from "@/services/inboxService";
@@ -48,7 +45,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 export interface PendingDocumentsDialogProps {
@@ -71,15 +67,12 @@ export function PendingDocumentsDialog({
   const [documents, setDocuments] = useState<PendingDocumentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [decryptingId, setDecryptingId] = useState<string | null>(null);
+  const dismissedDocIdsRef = useRef<Set<string>>(new Set());
 
   // Estados para el visor de previsualización del documento descifrado
   const [selectedDoc, setSelectedDoc] = useState<PendingDocumentItem | null>(null);
   const [decryptedFile, setDecryptedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  // Estados para rechazar documento
-  const [rejecting, setRejecting] = useState(false);
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
   // Estados para descartar / eliminar documento pendiente
   const [docToDiscard, setDocToDiscard] = useState<PendingDocumentItem | null>(null);
@@ -92,8 +85,9 @@ export function PendingDocumentsDialog({
     setLoading(true);
     try {
       const data = await getPendingDocuments(supabaseUser.id);
-      setDocuments(data);
-      onCountChange?.(data.length);
+      const filtered = data.filter((d) => !dismissedDocIdsRef.current.has(d.id));
+      setDocuments(filtered);
+      onCountChange?.(filtered.length);
     } catch (err: unknown) {
       console.error("Error al cargar documentos pendientes:", err);
       const msg = err instanceof Error ? err.message : "No se pudieron obtener los documentos.";
@@ -157,18 +151,25 @@ export function PendingDocumentsDialog({
   // Descartar / eliminar documento pendiente
   const handleConfirmDiscard = async () => {
     if (!docToDiscard) return;
+    const docId = docToDiscard.id;
+    const docPath = docToDiscard.storage_path;
+    const docName = docToDiscard.file_name;
+    dismissedDocIdsRef.current.add(docId);
     setDiscarding(true);
     try {
-      await deletePendingDocument(docToDiscard.id, docToDiscard.storage_path);
-      toast({
-        title: "Documento descartado",
-        description: `Se ha descartado la solicitud "${docToDiscard.file_name}".`,
-      });
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
       setDiscardDialogOpen(false);
       setDocToDiscard(null);
-      if (selectedDoc?.id === docToDiscard.id) {
+      if (selectedDoc?.id === docId) {
         handleBackToList();
       }
+
+      await deletePendingDocument(docId, docPath);
+
+      toast({
+        title: "Documento descartado",
+        description: `Se ha descartado la solicitud "${docName}".`,
+      });
       await loadDocuments();
     } catch (err: unknown) {
       console.error("Error al descartar documento:", err);
@@ -179,31 +180,6 @@ export function PendingDocumentsDialog({
       });
     } finally {
       setDiscarding(false);
-    }
-  };
-
-  // Rechazar documento recibido
-  const handleRejectDocument = async () => {
-    if (!selectedDoc) return;
-    setRejecting(true);
-    try {
-      await rejectPendingDocument(selectedDoc.id, selectedDoc.storage_path);
-      toast({
-        title: "Documento rechazado",
-        description: `Se ha marcado "${selectedDoc.file_name}" como rechazado.`,
-      });
-      setRejectDialogOpen(false);
-      handleBackToList();
-      await loadDocuments();
-    } catch (err: unknown) {
-      console.error("Error al rechazar documento:", err);
-      toast({
-        variant: "destructive",
-        title: "Error al rechazar documento",
-        description: "No se pudo actualizar el estado del documento.",
-      });
-    } finally {
-      setRejecting(false);
     }
   };
 
@@ -246,6 +222,9 @@ export function PendingDocumentsDialog({
         state: {
           incomingFile: fileToPass,
           pendingDocId: docId,
+          storagePath: selectedDoc.storage_path,
+          docName: selectedDoc.file_name,
+          senderName: selectedDoc.sender_name || selectedDoc.sender_email,
         },
       });
     }
@@ -265,9 +244,8 @@ export function PendingDocumentsDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className={`bg-[#090a0f] border-white/10 text-white shadow-2xl p-0 overflow-hidden sm:rounded-2xl transition-all duration-300 ${
-          isPreviewMode ? "max-w-7xl w-[96vw] h-[94vh] max-h-[96vh] flex flex-col" : "max-w-2xl w-full"
-        }`}
+        className={`bg-[#090a0f] border-white/10 text-white shadow-2xl p-0 overflow-hidden sm:rounded-2xl transition-all duration-300 ${isPreviewMode ? "max-w-7xl w-[96vw] h-[94vh] max-h-[96vh] flex flex-col" : "max-w-2xl w-full"
+          }`}
       >
         {/* ========================================================================= */}
         {/* MODO A: VISTA PREVIA Y REVISIÓN DEL DOCUMENTO DESCIFRADO                  */}
@@ -414,7 +392,7 @@ export function PendingDocumentsDialog({
                   className="text-xs sm:text-sm bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 transition-all duration-300 text-white font-bold gap-2 h-10 px-5 shadow-[0_0_20px_rgba(16,185,129,0.35)] flex-1 sm:flex-initial rounded-xl"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Firmar Documento Ahora (ML-DSA)</span>
+                  <span>Firmar Documento Ahora</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -473,7 +451,7 @@ export function PendingDocumentsDialog({
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-white">Bandeja al día</p>
                     <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                      No tienes documentos pendientes de descifrado ni firma en este momento.
+                      No tienes documentos pendientes ni de firma en este momento.
                     </p>
                   </div>
                 </div>
