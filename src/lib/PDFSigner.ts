@@ -134,8 +134,10 @@ export function injectSignatureHex(
     );
   }
 
-  // Crear una copia del buffer para mantener inmutabilidad y evitar efectos colaterales
-  const outputBytes = new Uint8Array(bytes.slice(0));
+  // Crear una copia en un nuevo ArrayBuffer puro de longitud exacta
+  const outputBuffer = new ArrayBuffer(totalLength);
+  const outputBytes = new Uint8Array(outputBuffer);
+  outputBytes.set(bytes);
 
   // 1. Inyectar caracteres hexadecimales de la firma codificados como ASCII (0-9, a-f)
   for (let i = 0; i < cleanHex.length; i++) {
@@ -147,7 +149,7 @@ export function injectSignatureHex(
     outputBytes[contentsOffset + i] = 0x30; // '0'
   }
 
-  return outputBytes.buffer;
+  return outputBuffer;
 }
 
 /**

@@ -155,7 +155,14 @@ function formatPdfDate(d: Date): string {
  */
 function escapePdfString(str: string): string {
   if (!str) return "";
-  return str.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  const normalized = str
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-");
+  return normalized
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
 }
 
 /**
@@ -258,6 +265,8 @@ function buildUpdatedPageObject(
   }
   if (!/endobj\s*$/i.test(updatedText)) {
     updatedText = updatedText.trimEnd() + "\nendobj\n";
+  } else if (!updatedText.endsWith("\n")) {
+    updatedText += "\n";
   }
 
   return updatedText;
@@ -524,7 +533,8 @@ export function prepareVisualSignatureUpdate(
       existingAnnots,
       widgetObjNumber as number
     );
-    pageObjBytes = encoder.encode(updatedPageObjText);
+    const safePageObjText = updatedPageObjText.endsWith("\n") ? updatedPageObjText : updatedPageObjText + "\n";
+    pageObjBytes = encoder.encode(safePageObjText);
   }
 
   // 3. Objeto Widget Annotation (/Type /Annot /Subtype /Widget)
@@ -617,20 +627,31 @@ export function prepareVisualSignatureUpdate(
   const xrefTableBytes = encoder.encode(xrefTable);
 
   // 8. Extracción del Tráiler Original y Construcción del Nuevo Tráiler (ISO 32000)
-  // Escaneo global ultra-rápido para garantizar la captura del Root e ID
-  const fullFileStr = decodeLatin1(rawBytes, 0, rawBytes.length);
+  // Escaneo acotado a la ventana del trailer previo para evitar falsos positivos y decodificaciones masivas
+  const trailerScanStart = Math.max(0, Math.min(lastXrefOffset - 64, lastEofPos - 16384));
+  const trailerChunk = decodeLatin1(rawBytes, trailerScanStart, lastEofPos);
 
   let rootRef = "";
   let idArray = "";
 
-  const rootMatches = [...fullFileStr.matchAll(/\/Root\s+\d+\s+\d+\s+R/gi)];
-  if (rootMatches.length > 0) {
-    rootRef = rootMatches[rootMatches.length - 1][0].trim();
+  const rootMatch = /\/Root\s+\d+\s+\d+\s+R/i.exec(trailerChunk);
+  if (rootMatch) {
+    rootRef = rootMatch[0].trim();
+  } else {
+    const backStart = Math.max(0, lastEofPos - 65536);
+    const backChunk = decodeLatin1(rawBytes, backStart, lastEofPos);
+    const fbRoot = /\/Root\s+\d+\s+\d+\s+R/i.exec(backChunk);
+    if (fbRoot) rootRef = fbRoot[0].trim();
   }
 
-  const idMatches = [...fullFileStr.matchAll(/\/ID\s*\[[\s\S]*?\]/gi)];
-  if (idMatches.length > 0) {
-    idArray = idMatches[idMatches.length - 1][0].trim().replace(/\s+/g, " ");
+  const idMatch = /\/ID\s*\[[\s\S]*?\]/i.exec(trailerChunk);
+  if (idMatch) {
+    idArray = idMatch[0].trim().replace(/\s+/g, " ");
+  } else {
+    const backStart = Math.max(0, lastEofPos - 65536);
+    const backChunk = decodeLatin1(rawBytes, backStart, lastEofPos);
+    const fbId = /\/ID\s*\[[\s\S]*?\]/i.exec(backChunk);
+    if (fbId) idArray = fbId[0].trim().replace(/\s+/g, " ");
   }
 
   const maxObjNum = Math.max(...xrefEntries.map((e) => e.objNum));

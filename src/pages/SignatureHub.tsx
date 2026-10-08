@@ -457,7 +457,13 @@ const SignatureHub = () => {
   const handleDownload = useCallback(() => {
     if (!signedPdfBytes || !file) return;
 
-    const blob = new Blob([signedPdfBytes as BlobPart], { type: "application/pdf" });
+    // Garantizar un ArrayBuffer puro y aislado con slice exacto para evitar
+    // desajustes o pérdidas de referencia de WebKit/Safari en macOS con TypedArrays.
+    const cleanBuffer = (signedPdfBytes.buffer as ArrayBuffer).slice(
+      signedPdfBytes.byteOffset,
+      signedPdfBytes.byteOffset + signedPdfBytes.byteLength
+    );
+    const blob = new Blob([cleanBuffer], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
