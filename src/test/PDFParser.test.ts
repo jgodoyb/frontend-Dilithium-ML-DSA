@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseXrefTable, extractObject, findLastPageObject } from "../lib/PDFParser";
+import { parseXrefTable, extractObject, findLastPageObject, extractTrailerInfo } from "../lib/PDFParser";
 
 /**
  * Helper para construir un PDF binario determinista en memoria
@@ -245,5 +245,48 @@ describe("PDFParser - findLastPageObject", () => {
     expect(lastPage.pageObjNumber).toBe(3);
     expect(lastPage.pageDict).toContain("/Label (BaseRevisionPage)");
     expect(lastPage.existingAnnots).toBe("");
+  });
+
+  it("extractTrailerInfo analiza correctamente trailers clásicos y streams /Type /XRef modernos", () => {
+    // 1. Trailer clásico
+    const classicMock = buildMockPdf(
+      [{ num: 1, content: "<< /Type /Catalog /Pages 2 0 R >>" }],
+      1
+    );
+    const classicInfo = extractTrailerInfo(classicMock.buffer, classicMock.xrefOffset);
+    expect(classicInfo.isXRefStream).toBe(false);
+    expect(classicInfo.rootObjNumber).toBe(1);
+    expect(classicInfo.rootRef).toContain("/Root 1 0 R");
+    expect(classicInfo.size).toBe(2);
+
+    // 2. Modern XRef Stream (/Type /XRef)
+    const encoder = new TextEncoder();
+    const pdfText = `%PDF-1.5\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n`;
+    const xrefOffset = encoder.encode(pdfText).length;
+    const xrefStreamObj = `4 0 obj\n<<\n  /Type /XRef\n  /Size 5\n  /Root 1 0 R\n  /ID [ <AAAABBBBCCCCDDDDAAAABBBBCCCCDDDD> <AAAABBBBCCCCDDDDAAAABBBBCCCCDDDD> ]\n  /W [ 1 2 2 ]\n  /Index [ 0 5 ]\n  /Length 10\n>>\nstream\n0123456789\nendstream\nendobj\n`;
+    const tail = `startxref\n${xrefOffset}\n%%EOF\n`;
+    const fullBuffer = encoder.encode(pdfText + xrefStreamObj + tail).buffer;
+
+    const modernInfo = extractTrailerInfo(fullBuffer, xrefOffset);
+    expect(modernInfo.isXRefStream).toBe(true);
+    expect(modernInfo.rootObjNumber).toBe(1);
+    expect(modernInfo.rootRef).toContain("/Root 1 0 R");
+    expect(modernInfo.size).toBe(5);
+    expect(modernInfo.idArray).toContain("AAAABBBBCCCCDDDDAAAABBBBCCCCDDDD");
+    expect(modernInfo.xrefObjNumber).toBe(4);
+
+    // 3. parseXrefTable mapea los objetos de nivel superior en documentos con XRef stream
+    const xrefMap = parseXrefTable(fullBuffer, xrefOffset);
+    expect(xrefMap.size).toBeGreaterThanOrEqual(4);
+    expect(xrefMap.has(1)).toBe(true);
+    expect(xrefMap.has(2)).toBe(true);
+    expect(xrefMap.has(3)).toBe(true);
+    expect(xrefMap.has(4)).toBe(true);
+
+    // 4. findLastPageObject localiza la última página sin asumir contigüidad
+    const lastPage = findLastPageObject(fullBuffer, xrefOffset);
+    expect(lastPage.pageObjNumber).toBe(3);
+    expect(lastPage.pageMediaBox).toEqual([0, 0, 612, 792]);
+    expect(lastPage.pageDict).toContain("/Type /Page");
   });
 });

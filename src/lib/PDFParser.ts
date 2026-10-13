@@ -53,12 +53,301 @@ function decodeLatin1(bytes: Uint8Array, start: number, end: number): string {
 }
 
 /**
- * Parsea la tabla de referencias cruzadas (XRef) de texto plano a partir del offset indicado.
+ * Escanea el buffer en busca de definiciones de objetos indirectos de nivel superior ('X Y obj').
+ * Permite poblar el mapa de objetos en documentos que utilizan Streams de Referencias Cruzadas (/Type /XRef)
+ * o tablas XRef parciales, sin requerir descompresión externa ni alterar la memoria.
+ *
+ * @param bytes - Vista Uint8Array de los datos binarios del PDF.
+ * @param maxOffset - Límite superior opcional para el escaneo.
+ * @returns Map asociando número de objeto -> byte offset exacto en el archivo.
+ */
+export function scanTopLevelObjects(bytes: Uint8Array, maxOffset?: number): Map<number, number> {
+  const map = new Map<number, number>();
+  const limit = Math.min(bytes.length, maxOffset ?? bytes.length);
+  const CHUNK_SIZE = 65536;
+  const OVERLAP = 64;
+
+  let pos = 0;
+  while (pos < limit) {
+    const chunkEnd = Math.min(limit, pos + CHUNK_SIZE);
+    const chunk = decodeLatin1(bytes, pos, chunkEnd);
+    const objRegex = /(?:^|[\r\n\s])(\d+)\s+(\d+)\s+obj\b/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = objRegex.exec(chunk)) !== null) {
+      const fullMatch = match[0];
+      const objNum = parseInt(match[1], 10);
+      const numOffsetInMatch = fullMatch.indexOf(match[1]);
+      const exactOffset = pos + match.index + numOffsetInMatch;
+
+      if (exactOffset < limit) {
+        // En PDF, la última definición de un objeto prevalece (revisiones incrementales)
+        map.set(objNum, exactOffset);
+      }
+    }
+
+    if (chunkEnd >= limit) break;
+    pos = chunkEnd - OVERLAP;
+  }
+
+  return map;
+}
+
+export interface PdfTrailerInfo {
+  /**
+   * Indica si la sección corresponde a un objeto Stream (/Type /XRef) o a un trailer clásico.
+   */
+  isXRefStream: boolean;
+  /**
+   * Referencia indirecta al catálogo extraída (/Root X Y R).
+   */
+  rootRef: string;
+  /**
+   * Número de objeto indirecto del catálogo (/Root).
+   */
+  rootObjNumber: number;
+  /**
+   * Tamaño del documento (/Size).
+   */
+  size: number;
+  /**
+   * Array identificador del documento (/ID [ ... ]) si está presente.
+   */
+  idArray: string;
+  /**
+   * Byte offset de la revisión previa (/Prev) si existe.
+   */
+  prevOffset: number | null;
+  /**
+   * Contenido textual del diccionario entre << y >>.
+   */
+  dictText: string;
+  /**
+   * Número del objeto XRef Stream si corresponde a dicho formato.
+   */
+  xrefObjNumber?: number;
+}
+
+/**
+ * Analizador universal de diccionarios Trailer (ISO 32000-1 §7.5.5 y §7.5.8).
+ * Soporta de forma transparente tanto el formato clásico (palabra clave 'trailer << ... >>')
+ * como el formato moderno (/Type /XRef stream 'X 0 obj << ... >> stream').
+ *
+ * Mantiene el escaneo acotado a la ventana segura para prevenir falsos positivos con flujos comprimidos binarios.
+ *
+ * @param buffer - ArrayBuffer o Uint8Array con los datos binarios del PDF.
+ * @param xrefOffset - Byte offset donde comienza la tabla o stream XRef.
+ * @param lastEofPos - Posición en bytes del marcador %%EOF (opcional).
+ * @returns Objeto PdfTrailerInfo con los metadatos esenciales del trailer.
+ */
+export function extractTrailerInfo(
+  buffer: ArrayBuffer | Uint8Array,
+  xrefOffset: number,
+  lastEofPos?: number
+): PdfTrailerInfo {
+  const bytes = toUint8Array(buffer);
+  const totalLength = bytes.length;
+  const eof = lastEofPos ?? totalLength;
+
+  // 1. Camino Clásico: Comprobar si en o tras xrefOffset existe la palabra clave 'trailer'
+  const scanStart = Math.max(0, xrefOffset - 64);
+  const scanEnd = Math.min(totalLength, Math.max(scanStart + 4096, Math.min(scanStart + 65536, eof)));
+  const chunk = decodeLatin1(bytes, scanStart, scanEnd);
+
+  // Buscar bloque trailer clásico: trailer << ... >>
+  const trailerMatch = /trailer\s*<<([\s\S]*?)>>/i.exec(chunk);
+
+  if (trailerMatch) {
+    const dictContent = trailerMatch[1];
+    let rootRef = "";
+    let rootObjNumber = -1;
+
+    const rootMatch = /\/Root\s+(\d+)\s+\d+\s+R/i.exec(dictContent);
+    if (rootMatch) {
+      rootObjNumber = parseInt(rootMatch[1], 10);
+      rootRef = rootMatch[0].trim();
+    }
+
+    let size = 0;
+    const sizeMatch = /\/Size\s+(\d+)/.exec(dictContent);
+    if (sizeMatch) {
+      size = parseInt(sizeMatch[1], 10);
+    }
+
+    let idArray = "";
+    const idMatch = /\/ID\s*\[[\s\S]*?\]/i.exec(dictContent);
+    if (idMatch) {
+      idArray = idMatch[0].trim().replace(/\s+/g, " ");
+    }
+
+    let prevOffset: number | null = null;
+    const prevMatch = /\/Prev\s+(\d+)/.exec(dictContent);
+    if (prevMatch) {
+      prevOffset = parseInt(prevMatch[1], 10);
+    }
+
+    // Fallback acotado a la cola del archivo (últimos 64KB) para /Root y /ID si faltaran en dictContent
+    if (!rootRef || !idArray) {
+      const backStart = Math.max(0, eof - 65536);
+      const backChunk = decodeLatin1(bytes, backStart, eof);
+      if (!rootRef) {
+        const fbRoot = /\/Root\s+(\d+)\s+\d+\s+R/i.exec(backChunk);
+        if (fbRoot) {
+          rootObjNumber = parseInt(fbRoot[1], 10);
+          rootRef = fbRoot[0].trim();
+        }
+      }
+      if (!idArray) {
+        const fbId = /\/ID\s*\[[\s\S]*?\]/i.exec(backChunk);
+        if (fbId) {
+          idArray = fbId[0].trim().replace(/\s+/g, " ");
+        }
+      }
+    }
+
+    return {
+      isXRefStream: false,
+      rootRef,
+      rootObjNumber,
+      size,
+      idArray,
+      prevOffset,
+      dictText: dictContent,
+    };
+  }
+
+  // 2. Camino XRef Stream Moderno (ISO 32000-1 §7.5.8):
+  // Si xrefOffset apunta a un objeto indirecto 'X 0 obj' con '/Type /XRef'
+  const objHeaderWindow = decodeLatin1(bytes, Math.max(0, xrefOffset - 64), Math.min(totalLength, xrefOffset + 2048));
+  const objMatch = /\b(\d+)\s+\d+\s+obj\b/i.exec(objHeaderWindow);
+
+  if (objMatch) {
+    const xrefObjNumber = parseInt(objMatch[1], 10);
+    const objOffsetInWindow = objHeaderWindow.indexOf(objMatch[0]);
+    const objStart = Math.max(0, xrefOffset - 64) + objOffsetInWindow;
+
+    // Leer el diccionario del objeto (estrictamente delimitado por << y >> antes de la palabra clave 'stream')
+    const dictWindow = decodeLatin1(bytes, objStart, Math.min(totalLength, objStart + 8192));
+    const streamIdx = dictWindow.indexOf("stream");
+    const searchScope = streamIdx !== -1 ? dictWindow.substring(0, streamIdx) : dictWindow;
+
+    const dictOpen = searchScope.indexOf("<<");
+    const dictClose = searchScope.lastIndexOf(">>");
+
+    if (dictOpen !== -1 && dictClose > dictOpen) {
+      const dictContent = searchScope.substring(dictOpen + 2, dictClose);
+
+      // Verificar que es un stream de tipo XRef
+      if (/\/Type\s*\/XRef\b/i.test(dictContent) || /\/Type\s*\/XRef\b/i.test(searchScope)) {
+        let rootRef = "";
+        let rootObjNumber = -1;
+
+        const rootMatch = /\/Root\s+(\d+)\s+\d+\s+R/i.exec(dictContent);
+        if (rootMatch) {
+          rootObjNumber = parseInt(rootMatch[1], 10);
+          rootRef = rootMatch[0].trim();
+        }
+
+        let size = 0;
+        const sizeMatch = /\/Size\s+(\d+)/.exec(dictContent);
+        if (sizeMatch) {
+          size = parseInt(sizeMatch[1], 10);
+        }
+
+        let idArray = "";
+        const idMatch = /\/ID\s*\[[\s\S]*?\]/i.exec(dictContent);
+        if (idMatch) {
+          idArray = idMatch[0].trim().replace(/\s+/g, " ");
+        }
+
+        let prevOffset: number | null = null;
+        const prevMatch = /\/Prev\s+(\d+)/.exec(dictContent);
+        if (prevMatch) {
+          prevOffset = parseInt(prevMatch[1], 10);
+        }
+
+        // Fallback acotado a la cola si fuera necesario
+        if (!rootRef || !idArray) {
+          const backStart = Math.max(0, eof - 65536);
+          const backChunk = decodeLatin1(bytes, backStart, eof);
+          if (!rootRef) {
+            const fbRoot = /\/Root\s+(\d+)\s+\d+\s+R/i.exec(backChunk);
+            if (fbRoot) {
+              rootObjNumber = parseInt(fbRoot[1], 10);
+              rootRef = fbRoot[0].trim();
+            }
+          }
+          if (!idArray) {
+            const fbId = /\/ID\s*\[[\s\S]*?\]/i.exec(backChunk);
+            if (fbId) {
+              idArray = fbId[0].trim().replace(/\s+/g, " ");
+            }
+          }
+        }
+
+        return {
+          isXRefStream: true,
+          rootRef,
+          rootObjNumber,
+          size,
+          idArray,
+          prevOffset,
+          dictText: dictContent,
+          xrefObjNumber,
+        };
+      }
+    }
+  }
+
+  // 3. Fallback genérico de búsqueda segura en ventana acotada (últimos 64KB)
+  const fallbackStart = Math.max(0, eof - 65536);
+  const fallbackChunk = decodeLatin1(bytes, fallbackStart, eof);
+
+  let rootRef = "";
+  let rootObjNumber = -1;
+  const rootMatch = /\/Root\s+(\d+)\s+\d+\s+R/i.exec(fallbackChunk);
+  if (rootMatch) {
+    rootObjNumber = parseInt(rootMatch[1], 10);
+    rootRef = rootMatch[0].trim();
+  }
+
+  let idArray = "";
+  const idMatch = /\/ID\s*\[[\s\S]*?\]/i.exec(fallbackChunk);
+  if (idMatch) {
+    idArray = idMatch[0].trim().replace(/\s+/g, " ");
+  }
+
+  let prevOffset: number | null = null;
+  const prevMatch = /\/Prev\s+(\d+)/.exec(fallbackChunk);
+  if (prevMatch) {
+    prevOffset = parseInt(prevMatch[1], 10);
+  }
+
+  let size = 0;
+  const sizeMatch = /\/Size\s+(\d+)/.exec(fallbackChunk);
+  if (sizeMatch) {
+    size = parseInt(sizeMatch[1], 10);
+  }
+
+  return {
+    isXRefStream: false,
+    rootRef,
+    rootObjNumber,
+    size,
+    idArray,
+    prevOffset,
+    dictText: "",
+  };
+}
+
+/**
+ * Parsea la tabla de referencias cruzadas (XRef) a partir del offset indicado.
+ * Soporta de forma transparente tanto tablas XRef clásicas en texto plano como Streams /Type /XRef (ISO 32000-1 §7.5.8).
  * Si el tráiler incluye la propiedad /Prev, navega recursivamente hacia las revisiones anteriores
  * para construir el mapa acumulativo completo de todos los objetos activos en el documento.
  *
  * @param buffer - ArrayBuffer del documento PDF.
- * @param xrefOffset - Byte offset donde comienza la tabla XRef.
+ * @param xrefOffset - Byte offset donde comienza la tabla o stream XRef.
  * @returns Map asociando número de objeto -> byte offset en el archivo.
  */
 export function parseXrefTable(buffer: ArrayBuffer, xrefOffset: number): Map<number, number> {
@@ -68,79 +357,107 @@ export function parseXrefTable(buffer: ArrayBuffer, xrefOffset: number): Map<num
   const visitedOffsets = new Set<number>();
 
   let curOffset: number | null = xrefOffset;
+  let encounteredXRefStream = false;
 
   while (curOffset !== null && curOffset >= 0 && curOffset < totalLength) {
     if (visitedOffsets.has(curOffset)) break;
     visitedOffsets.add(curOffset);
 
-    // Búsqueda flexible de 'xref' en una pequeña ventana alrededor del offset
+    // Búsqueda flexible en una ventana alrededor del offset
     const searchStart = Math.max(0, curOffset - 64);
     const searchEnd = Math.min(totalLength, curOffset + 65536);
     const chunk = decodeLatin1(bytes, searchStart, searchEnd);
 
+    // Verificar si en curOffset hay una tabla xref clásica
     const xrefIdxInChunk = chunk.indexOf("xref");
-    if (xrefIdxInChunk === -1) {
-      break;
-    }
+    const hasClassicTrailer = /trailer\s*<<[\s\S]*?>>/i.test(chunk);
 
-    const afterXref = chunk.substring(xrefIdxInChunk + 4);
-    const lines = afterXref.split(/\r\n|\n|\r/);
+    if (xrefIdxInChunk !== -1 && hasClassicTrailer) {
+      // ── Camino Clásico ──────────────────────────────────────────
+      const afterXref = chunk.substring(xrefIdxInChunk + 4);
+      const lines = afterXref.split(/\r\n|\n|\r/);
 
-    let lineIdx = 0;
-    let prevOffset: number | null = null;
+      let lineIdx = 0;
+      let prevOffset: number | null = null;
 
-    // Procesar subsecciones de la tabla XRef
-    while (lineIdx < lines.length) {
-      const line = lines[lineIdx].trim();
+      // Procesar subsecciones de la tabla XRef
+      while (lineIdx < lines.length) {
+        const line = lines[lineIdx].trim();
 
-      // Si alcanzamos la sección del trailer, terminamos las subsecciones
-      if (line.startsWith("trailer")) {
-        break;
-      }
+        // Si alcanzamos la sección del trailer, terminamos las subsecciones
+        if (line.startsWith("trailer")) {
+          break;
+        }
 
-      if (line === "") {
-        lineIdx++;
-        continue;
-      }
+        if (line === "") {
+          lineIdx++;
+          continue;
+        }
 
-      // Cabecera de subsección: <startObjectNumber> <count>
-      const headerMatch = /^(\d+)\s+(\d+)$/.exec(line);
-      if (headerMatch) {
-        const startObj = parseInt(headerMatch[1], 10);
-        const count = parseInt(headerMatch[2], 10);
-        lineIdx++;
+        // Cabecera de subsección: <startObjectNumber> <count>
+        const headerMatch = /^(\d+)\s+(\d+)$/.exec(line);
+        if (headerMatch) {
+          const startObj = parseInt(headerMatch[1], 10);
+          const count = parseInt(headerMatch[2], 10);
+          lineIdx++;
 
-        // Leer cada una de las entradas de la subsección
-        for (let i = 0; i < count && lineIdx < lines.length; i++) {
-          const entryLine = lines[lineIdx].trim();
-          const entryMatch = /^(\d{10})\s+(\d{5})\s+([nf])/i.exec(entryLine);
-          if (entryMatch) {
-            const offset = parseInt(entryMatch[1], 10);
-            const flag = entryMatch[3].toLowerCase();
-            const objNum = startObj + i;
+          // Leer cada una de las entradas de la subsección
+          for (let i = 0; i < count && lineIdx < lines.length; i++) {
+            const entryLine = lines[lineIdx].trim();
+            const entryMatch = /^(\d{10})\s+(\d{5})\s+([nf])/i.exec(entryLine);
+            if (entryMatch) {
+              const offset = parseInt(entryMatch[1], 10);
+              const flag = entryMatch[3].toLowerCase();
+              const objNum = startObj + i;
 
-            // En actualizaciones incrementales, las revisiones más recientes tienen prioridad
-            if (flag === "n" && !xrefMap.has(objNum)) {
-              xrefMap.set(objNum, offset);
+              // En actualizaciones incrementales, las revisiones más recientes tienen prioridad
+              if (flag === "n" && !xrefMap.has(objNum)) {
+                xrefMap.set(objNum, offset);
+              }
             }
+            lineIdx++;
           }
+        } else {
           lineIdx++;
         }
+      }
+
+      // Buscar /Prev en el trailer para enlazar revisiones anteriores
+      const trailerMatch = /trailer\s*<<([\s\S]*?)>>/i.exec(chunk);
+      if (trailerMatch) {
+        const prevMatch = /\/Prev\s+(\d+)/.exec(trailerMatch[1]);
+        if (prevMatch) {
+          prevOffset = parseInt(prevMatch[1], 10);
+        }
+      }
+
+      curOffset = prevOffset !== null && prevOffset >= 0 && prevOffset < curOffset ? prevOffset : null;
+    } else {
+      // ── Camino XRef Stream Moderno (ISO 32000-1 §7.5.8) ────────
+      const trailerInfo = extractTrailerInfo(bytes, curOffset);
+      if (trailerInfo.isXRefStream) {
+        encounteredXRefStream = true;
+        if (trailerInfo.xrefObjNumber !== undefined && !xrefMap.has(trailerInfo.xrefObjNumber)) {
+          xrefMap.set(trailerInfo.xrefObjNumber, curOffset);
+        }
+        // Seguir /Prev si apunta a una revisión anterior
+        const prevOffset = trailerInfo.prevOffset;
+        curOffset = prevOffset !== null && prevOffset >= 0 && prevOffset < curOffset ? prevOffset : null;
       } else {
-        lineIdx++;
+        break;
       }
     }
+  }
 
-    // Buscar /Prev en el trailer para enlazar revisiones anteriores
-    const trailerMatch = /trailer\s*<<([\s\S]*?)>>/i.exec(chunk);
-    if (trailerMatch) {
-      const prevMatch = /\/Prev\s+(\d+)/.exec(trailerMatch[1]);
-      if (prevMatch) {
-        prevOffset = parseInt(prevMatch[1], 10);
+  // Si encontramos un XRef Stream (o la tabla XRef estaba vacía),
+  // escaneamos los objetos de nivel superior para garantizar resolución completa
+  if (encounteredXRefStream || xrefMap.size === 0) {
+    const scanned = scanTopLevelObjects(bytes);
+    for (const [objNum, offset] of scanned.entries()) {
+      if (!xrefMap.has(objNum)) {
+        xrefMap.set(objNum, offset);
       }
     }
-
-    curOffset = prevOffset !== null && prevOffset >= 0 && prevOffset < curOffset ? prevOffset : null;
   }
 
   return xrefMap;
@@ -337,8 +654,8 @@ function extractExistingAnnots(
   const indirectMatch = /\/Annots\s+(\d+)\s+\d+\s+R/.exec(pageDict);
   if (indirectMatch) {
     const annotsObjNum = parseInt(indirectMatch[1], 10);
-    const offset = xrefMap.get(annotsObjNum);
-    if (offset !== undefined) {
+    const offset = xrefMap.get(annotsObjNum) ?? findObjectOffset(toUint8Array(buffer), annotsObjNum);
+    if (offset !== undefined && offset !== null) {
       try {
         const objText = extractObject(buffer, offset);
         const arrayMatch = /\[([\s\S]*?)\]/.exec(objText);
@@ -373,8 +690,10 @@ export interface LastPageInfo {
  * Extrae además la metadata completa del árbol de páginas, lista de anotaciones previa (/Annots),
  * dimensiones de MediaBox y detección de Hoja de Firmas existente (ISO 32000).
  *
+ * Soporta de forma transparente tanto PDFs tradicionales como streams /Type /XRef modernos (ISO 32000-1 §7.5.8).
+ *
  * @param buffer - ArrayBuffer del documento PDF.
- * @param xrefOffset - Byte offset de la última tabla XRef activa.
+ * @param xrefOffset - Byte offset de la última tabla o stream XRef activo.
  * @returns Objeto LastPageInfo con el número de página, diccionarios, conteo de firmas y metadatos.
  * @throws {Error} Si la estructura del catálogo o árbol de páginas es inválida.
  */
@@ -389,53 +708,50 @@ export function findLastPageObject(
     throw new Error("PDFParser: La tabla XRef está vacía o no contiene objetos válidos.");
   }
 
-  // 1. Localizar el catálogo (/Root) en los trailers
-  let rootObjNumber: number | null = null;
-  let curOffset: number | null = xrefOffset;
-  const visited = new Set<number>();
+  // 1. Localizar el catálogo (/Root) en los trailers o streams XRef
+  const initialTrailer = extractTrailerInfo(bytes, xrefOffset);
+  let rootObjNumber: number | null = initialTrailer.rootObjNumber > 0 ? initialTrailer.rootObjNumber : null;
 
-  while (curOffset !== null && curOffset >= 0 && curOffset < bytes.length) {
-    if (visited.has(curOffset)) break;
-    visited.add(curOffset);
+  if (rootObjNumber === null) {
+    let curOffset: number | null = initialTrailer.prevOffset;
+    const visited = new Set<number>();
 
-    const chunk = decodeLatin1(bytes, Math.max(0, curOffset - 64), Math.min(bytes.length, curOffset + 8192));
-    const trailerMatch = /trailer\s*<<([\s\S]*?)>>/i.exec(chunk);
-    if (trailerMatch) {
-      const rootMatch = /\/Root\s+(\d+)\s+\d+\s+R/i.exec(trailerMatch[1]);
-      if (rootMatch) {
-        rootObjNumber = parseInt(rootMatch[1], 10);
+    while (curOffset !== null && curOffset >= 0 && curOffset < bytes.length) {
+      if (visited.has(curOffset)) break;
+      visited.add(curOffset);
+
+      const prevTrailer = extractTrailerInfo(bytes, curOffset);
+      if (prevTrailer.rootObjNumber > 0) {
+        rootObjNumber = prevTrailer.rootObjNumber;
         break;
       }
-      const prevMatch = /\/Prev\s+(\d+)/.exec(trailerMatch[1]);
-      curOffset = prevMatch ? parseInt(prevMatch[1], 10) : null;
-    } else {
-      break;
+      curOffset = prevTrailer.prevOffset;
     }
   }
 
-  if (rootObjNumber === null) {
+  if (rootObjNumber === null || rootObjNumber <= 0) {
     throw new Error("PDFParser: No se encontró la referencia /Root en ningún tráiler del documento.");
   }
 
   // 2. Extraer el Catálogo y encontrar la referencia al árbol /Pages
-  const rootOffset = xrefMap.get(rootObjNumber);
-  if (rootOffset === undefined) {
+  const rootOffset = xrefMap.get(rootObjNumber) ?? findObjectOffset(bytes, rootObjNumber);
+  if (rootOffset === undefined || rootOffset === null) {
     throw new Error(`PDFParser: Offset no encontrado para el objeto Catálogo /Root (${rootObjNumber}).`);
   }
 
-  const catalogObj = extractObject(buffer, rootOffset);
+  const catalogObj = extractObject(buffer, rootOffset, xrefMap);
   const pagesRefMatch = /\/Pages\s+(\d+)\s+\d+\s+R/i.exec(catalogObj);
   if (!pagesRefMatch) {
     throw new Error("PDFParser: El objeto Catálogo no contiene la referencia obligatoria /Pages.");
   }
 
   const pagesRootObjNum = parseInt(pagesRefMatch[1], 10);
-  const pagesRootOffset = xrefMap.get(pagesRootObjNum);
-  if (pagesRootOffset === undefined) {
+  const pagesRootOffset = xrefMap.get(pagesRootObjNum) ?? findObjectOffset(bytes, pagesRootObjNum);
+  if (pagesRootOffset === undefined || pagesRootOffset === null) {
     throw new Error(`PDFParser: Offset no encontrado para el objeto raíz /Pages (${pagesRootObjNum}).`);
   }
 
-  const pagesRootText = extractObject(buffer, pagesRootOffset);
+  const pagesRootText = extractObject(buffer, pagesRootOffset, xrefMap);
 
   // Extraer /Count del árbol de páginas raíz
   const countMatch = /\/Count\s+(\d+)/.exec(pagesRootText);
@@ -469,12 +785,12 @@ export function findLastPageObject(
     isSignatureSheet: boolean;
     pageMediaBox: [number, number, number, number];
   } {
-    const offset = xrefMap.get(objNum);
-    if (offset === undefined) {
+    const offset = xrefMap.get(objNum) ?? findObjectOffset(bytes, objNum);
+    if (offset === undefined || offset === null) {
       throw new Error(`PDFParser: Offset no encontrado para el nodo del árbol de páginas (${objNum}).`);
     }
 
-    const objText = extractObject(buffer, offset);
+    const objText = extractObject(buffer, offset, xrefMap);
     const isPagesNode = /\/Type\s*\/Pages\b/i.test(objText);
     const isPageNode = /\/Type\s*\/Page\b/i.test(objText) && !isPagesNode;
 
