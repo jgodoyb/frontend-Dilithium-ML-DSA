@@ -12,7 +12,7 @@
  * Cero dependencias externas.
  */
 
-import { extractObject, parseXrefTable } from "./PDFParser";
+import { extractObject, parseXrefTable, extractTrailerInfo } from "./PDFParser";
 import { generateSignatureSheetDrawingStream } from "./PDFAppearance";
 
 export interface PrepareVisualSignatureOptions {
@@ -626,28 +626,22 @@ export function prepareVisualSignatureUpdate(
   const xrefTable = buildDeltaXrefTable(xrefEntries);
   const xrefTableBytes = encoder.encode(xrefTable);
 
-  // 8. Extracción del Tráiler Original y Construcción del Nuevo Tráiler (ISO 32000)
-  // Escaneo acotado a la ventana del trailer previo para evitar falsos positivos y decodificaciones masivas
-  const trailerScanStart = Math.max(0, Math.min(lastXrefOffset - 64, lastEofPos - 16384));
-  const trailerChunk = decodeLatin1(rawBytes, trailerScanStart, lastEofPos);
+  // 8. Extracción del Tráiler Original y Construcción del Nuevo Tráiler (ISO 32000-1 §7.5.5 y §7.5.8)
+  // Soporte híbrido universal: detecta trailers clásicos y streams /Type /XRef modernos de forma transparente.
+  const trailerInfo = extractTrailerInfo(rawBytes, lastXrefOffset, lastEofPos);
 
-  let rootRef = "";
-  let idArray = "";
+  let rootRef = trailerInfo.rootRef;
+  let idArray = trailerInfo.idArray;
 
-  const rootMatch = /\/Root\s+\d+\s+\d+\s+R/i.exec(trailerChunk);
-  if (rootMatch) {
-    rootRef = rootMatch[0].trim();
-  } else {
+  // Fallback acotado a la cola del archivo (últimos 64KB) para /Root y /ID si faltaran
+  if (!rootRef) {
     const backStart = Math.max(0, lastEofPos - 65536);
     const backChunk = decodeLatin1(rawBytes, backStart, lastEofPos);
     const fbRoot = /\/Root\s+\d+\s+\d+\s+R/i.exec(backChunk);
     if (fbRoot) rootRef = fbRoot[0].trim();
   }
 
-  const idMatch = /\/ID\s*\[[\s\S]*?\]/i.exec(trailerChunk);
-  if (idMatch) {
-    idArray = idMatch[0].trim().replace(/\s+/g, " ");
-  } else {
+  if (!idArray) {
     const backStart = Math.max(0, lastEofPos - 65536);
     const backChunk = decodeLatin1(rawBytes, backStart, lastEofPos);
     const fbId = /\/ID\s*\[[\s\S]*?\]/i.exec(backChunk);
@@ -655,11 +649,13 @@ export function prepareVisualSignatureUpdate(
   }
 
   const maxObjNum = Math.max(...xrefEntries.map((e) => e.objNum));
-  const trailerSize = Math.max(1000, maxObjNum + 1);
+  const trailerSize = Math.max(trailerInfo.size || 1000, maxObjNum + 1);
 
   const rootRefLine = rootRef ? `  ${rootRef}\n` : "";
   const idArrayLine = idArray ? `  ${idArray}\n` : "";
 
+  // Generación del trailer incremental clásico conforme a ISO 32000-1 §7.5.8 (Actualización Híbrida)
+  // El puntero /Prev referencia exactamente el offset de inicio del XRef (sea stream u objeto clásico) previo.
   const trailer = `trailer\n<<\n  /Size ${trailerSize}\n  /Prev ${lastXrefOffset}\n${rootRefLine}${idArrayLine}>>\nstartxref\n${newXrefOffset}\n%%EOF\n`;
   const trailerBytes = encoder.encode(trailer);
 

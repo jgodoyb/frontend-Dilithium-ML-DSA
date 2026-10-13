@@ -15,11 +15,18 @@ import {
   Trash2,
   Lock,
   ArrowLeft,
+  AlertTriangle,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { validatePdf } from "@/lib/validatePdf";
+import {
+  checkPdfCompatibility,
+  translateSigningError,
+  type PdfCompatibilityResult,
+} from "@/lib/pdfCompatibility";
 import { supabase } from "@/integrations/supabase/client";
 import { markDocumentAsSigned } from "@/services/inboxService";
 import { PDFDocument } from "pdf-lib";
@@ -48,7 +55,7 @@ const SIGN_PARTICLES = Array.from({ length: 25 }).map((_, i) => ({
   rotate: (Math.random() - 0.5) * 45,
 }));
 
-type SignState = "idle" | "error" | "ready" | "processing" | "success";
+type SignState = "idle" | "error" | "ready" | "processing" | "success" | "incompatible";
 
 interface SelectedFile {
   name: string;
@@ -75,6 +82,7 @@ const SignatureHub = () => {
   const [state, setState] = useState<SignState>("idle");
   const [file, setFile] = useState<SelectedFile | null>(null);
   const [rawFile, setRawFile] = useState<File | null>(null);
+  const [incompatibility, setIncompatibility] = useState<PdfCompatibilityResult | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [progress, setProgress] = useState(0);
   const [signedPdfBytes, setSignedPdfBytes] = useState<Uint8Array | null>(null);
@@ -92,7 +100,7 @@ const SignatureHub = () => {
 
   const handleFile = useCallback(
     async (f: File) => {
-      // SECURITY: Magic-bytes validation — do NOT rely on extension or MIME type alone.
+      // 1. Verificación básica de tamaño y magic-bytes %PDF
       const result = await validatePdf(f);
       if (!result.valid) {
         setState("error");
@@ -104,8 +112,27 @@ const SignatureHub = () => {
         setTimeout(() => setState("idle"), 2000);
         return;
       }
+
       setRawFile(f);
       setFile({ name: f.name, size: formatBytes(f.size) });
+
+      // 2. Análisis preventivo de compatibilidad (firmas previas tradicionales, billetes Renfe, XFA, cifrado)
+      try {
+        const buffer = await f.arrayBuffer();
+        const compCheck = await checkPdfCompatibility(buffer);
+        if (!compCheck.compatible) {
+          setIncompatibility(compCheck);
+          setState("incompatible");
+          return;
+        }
+      } catch (checkErr) {
+        const translated = translateSigningError(checkErr);
+        setIncompatibility(translated);
+        setState("incompatible");
+        return;
+      }
+
+      setIncompatibility(null);
       setState("ready");
     },
     [toast]
@@ -388,12 +415,19 @@ const SignatureHub = () => {
         }
       }
     } catch (err: any) {
-      setState("ready");
-      toast({
-        variant: "destructive",
-        title: "Error al firmar",
-        description: err.message ?? "No se pudo contactar con el servidor.",
-      });
+      console.error("Error al firmar documento:", err);
+      const diag = translateSigningError(err);
+      if (diag.issueType && diag.issueType !== "SERVER_OR_KEY_ERROR") {
+        setIncompatibility(diag);
+        setState("incompatible");
+      } else {
+        setState("ready");
+        toast({
+          variant: "destructive",
+          title: diag.title || "Error al firmar",
+          description: diag.message || "No se pudo contactar con el servidor.",
+        });
+      }
     }
   }, [rawFile, toast, activePendingDocId, activeStoragePath]);
 
@@ -426,6 +460,7 @@ const SignatureHub = () => {
     setState("idle");
     setFile(null);
     setRawFile(null);
+    setIncompatibility(null);
     setProgress(0);
     setSignedPdfBytes(null);
     setActivePendingDocId(null);
@@ -442,6 +477,7 @@ const SignatureHub = () => {
     setState("idle");
     setFile(null);
     setRawFile(null);
+    setIncompatibility(null);
     setProgress(0);
     setSignedPdfBytes(null);
     setActivePendingDocId(null);
@@ -489,9 +525,11 @@ const SignatureHub = () => {
   const borderClass =
     state === "error"
       ? "border-red-500/70 shadow-[0_0_30px_rgba(239,68,68,0.3)] bg-red-500/5"
-      : dragActive
-        ? "border-[#0e7490] shadow-[0_0_30px_rgba(14,116,144,0.3)] bg-[#0e7490]/10"
-        : "border-white/10 hover:border-white/30 bg-black hover:bg-white/5";
+      : state === "incompatible"
+        ? "border-amber-500/60 shadow-[0_0_35px_rgba(245,158,11,0.25)] bg-amber-500/5"
+        : dragActive
+          ? "border-[#0e7490] shadow-[0_0_30px_rgba(14,116,144,0.3)] bg-[#0e7490]/10"
+          : "border-white/10 hover:border-white/30 bg-black hover:bg-white/5";
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#030303] text-white flex flex-col lg:flex-row w-full overflow-hidden">
@@ -654,6 +692,78 @@ const SignatureHub = () => {
                   <p className="text-xs tracking-widest uppercase font-bold text-red-500">
                     Formato no permitido
                   </p>
+                </motion.div>
+              )}
+
+              {/* -------- INCOMPATIBLE -------- */}
+              {state === "incompatible" && incompatibility && (
+                <motion.div
+                  key="incompatible"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex flex-col items-center gap-4 text-center max-w-lg w-full relative z-20"
+                >
+                  <div className="w-14 h-14 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center shadow-[0_0_25px_rgba(245,158,11,0.35)]">
+                    <AlertTriangle className="w-7 h-7 text-amber-400" />
+                  </div>
+
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-mono uppercase tracking-wider">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                    <span>
+                      {incompatibility.issueType === "INCOMPATIBLE_SIGNATURES"
+                        ? "Firma previa no compatible"
+                        : incompatibility.issueType === "ENCRYPTED_OR_PROTECTED"
+                          ? "Documento protegido"
+                          : "Estructura no editable"}
+                    </span>
+                  </div>
+
+                  {file && (
+                    <div className="space-y-0.5">
+                      <p className="text-white font-semibold text-sm truncate max-w-[320px]">
+                        {file.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500 font-mono">{file.size}</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 px-2">
+                    <h3 className="text-sm md:text-base font-semibold text-amber-300 tracking-tight">
+                      {incompatibility.title}
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed font-light">
+                      {incompatibility.message}
+                    </p>
+                    {incompatibility.details && (
+                      <p className="text-[11px] text-slate-400 font-mono mt-1 opacity-80 leading-normal">
+                        {incompatibility.details}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2.5 mt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => inputRef.current?.click()}
+                      className="bg-white/10 hover:bg-white/20 text-white text-xs rounded-full px-4 border border-white/20 h-9 transition-all"
+                    >
+                      <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+                      Subir otro documento
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeFile}
+                      className="text-slate-400 hover:text-white hover:bg-white/5 text-xs rounded-full px-3 h-9"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5 text-red-400" />
+                      Descartar
+                    </Button>
+                  </div>
                 </motion.div>
               )}
 

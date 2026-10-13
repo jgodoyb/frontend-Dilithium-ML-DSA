@@ -9,6 +9,7 @@
  */
 
 import { findLastXrefOffset } from "./PDFScanner";
+import { extractTrailerInfo } from "./PDFParser";
 
 export interface ExtractedSignature {
   /**
@@ -104,18 +105,11 @@ export function extractSignatures(buffer: ArrayBuffer): ExtractedSignature[] {
     }
     visitedOffsets.add(iterOffset);
 
-    // 1. Decodificar la sección del trailer y tabla XRef de la revisión actual
-    const trailerChunk = decodeLatin1(bytes, iterOffset, Math.min(totalLength, iterOffset + 4096));
-
-    // Buscar el puntero /Prev dentro del diccionario trailer << ... >>
-    let prevOffset: number | null = null;
-    const trailerDictMatch = /trailer\s*<<([\s\S]*?)>>/i.exec(trailerChunk);
-    if (trailerDictMatch) {
-      const prevMatch = /\/Prev\s+(\d+)/.exec(trailerDictMatch[1]);
-      if (prevMatch) {
-        prevOffset = parseInt(prevMatch[1], 10);
-      }
-    } else {
+    // 1. Extraer metadatos del trailer o stream XRef de la revisión actual
+    const trailerInfo = extractTrailerInfo(bytes, iterOffset, nextBoundEnd);
+    let prevOffset: number | null = trailerInfo.prevOffset;
+    if (prevOffset === null) {
+      const trailerChunk = decodeLatin1(bytes, iterOffset, Math.min(totalLength, iterOffset + 4096));
       const directPrevMatch = /\/Prev\s+(\d+)/.exec(trailerChunk);
       if (directPrevMatch) {
         prevOffset = parseInt(directPrevMatch[1], 10);
@@ -159,10 +153,10 @@ export function extractSignatures(buffer: ArrayBuffer): ExtractedSignature[] {
       const dateMatch = /\/M\s*\(([^)]*)\)/.exec(dictText);
       const signingDate = dateMatch ? dateMatch[1] : undefined;
 
-      const filterMatch = /\/Filter\s*\/([a-zA-Z0-9_]+)/.exec(dictText);
+      const filterMatch = /\/Filter\s*\/([a-zA-Z0-9_.]+)/.exec(dictText);
       const filter = filterMatch ? filterMatch[1] : undefined;
 
-      const subFilterMatch = /\/SubFilter\s*\/([a-zA-Z0-9_]+)/.exec(dictText);
+      const subFilterMatch = /\/SubFilter\s*\/([a-zA-Z0-9_.]+)/.exec(dictText);
       const subFilter = subFilterMatch ? subFilterMatch[1] : undefined;
 
       rawSignatures.push({

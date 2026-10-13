@@ -179,9 +179,10 @@ export function validatePdfStructure(input: ArrayBuffer | ArrayBufferView): PdfS
     errors.push("No se encontró marcador '%%EOF' al final del documento");
   }
 
-  // 4. Diccionario de firma /Type /Sig y /ByteRange
+  // 4. Diccionario de firma /Type /Sig y /ByteRange (inspecciona la última firma activa en documentos multifirmados)
   let signatureInfo: PdfStructureValidation["signature"];
-  const byteRangeMatch = /\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/.exec(fullText);
+  const byteRangeMatches = [...fullText.matchAll(/\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/g)];
+  const byteRangeMatch = byteRangeMatches.length > 0 ? byteRangeMatches[byteRangeMatches.length - 1] : null;
 
   if (byteRangeMatch) {
     const b0 = parseInt(byteRangeMatch[1], 10);
