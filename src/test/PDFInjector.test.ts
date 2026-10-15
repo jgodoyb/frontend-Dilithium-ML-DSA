@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { prepareVisualSignatureUpdate } from "../lib/PDFInjector";
 import { findLastXrefOffset, findLastEofPosition } from "../lib/PDFScanner";
-import { findLastPageObject } from "../lib/PDFParser";
+import { findLastPageObject, findPageObject } from "../lib/PDFParser";
 import { generateAppearanceStream } from "../lib/PDFAppearance";
 import { extractSignatures } from "../lib/PDFExtractor";
 import { extractSignableBytes, injectSignatureHex } from "../lib/PDFSigner";
+import { validatePdfStructure } from "../lib/pdfDiagnostic";
 
 /**
  * Helper para construir un PDF base válido en memoria.
@@ -439,6 +440,211 @@ describe("PDFInjector - prepareVisualSignatureUpdate", () => {
     expect(allSigs.length).toBe(2);
     expect(allSigs[0].signerId).toBe("uuid-alicia");
     expect(allSigs[1].signerId).toBe("uuid-roberto");
+  });
+
+  it("firma un PDF multipágina con jerarquía intermedia /Pages y anotaciones indirectas LaTeX hyperref sin duplicar /Annots y validando la estructura binaria completa", () => {
+    // Construir un PDF multipágina con árbol de páginas (/Pages -> /Kids intermedios -> /Page)
+    // y anotaciones de enlaces tipo LaTeX hyperref (/Annots 20 0 R, donde 20 0 obj es [ 21 0 R 22 0 R ])
+    const encoder = new TextEncoder();
+    let body = "%PDF-1.7\n";
+    const offsets = new Map<number, number>();
+
+    const objs = [
+      { num: 1, content: "<< /Type /Catalog /Pages 2 0 R /AcroForm 30 0 R >>" },
+      // Objeto /AcroForm previo existente en el documento
+      { num: 30, content: "<< /Fields [] /SigFlags 0 /DA (/Helv 0 Tf 0 g) >>" },
+      // Nodo raíz /Pages con 2 páginas en total
+      { num: 2, content: "<< /Type /Pages /Kids [10 0 R] /Count 2 >>" },
+      // Nodo intermedio /Pages (árbol balanceado típico de LaTeX / TFG / multipágina)
+      { num: 10, content: "<< /Type /Pages /Parent 2 0 R /Kids [3 0 R 4 0 R] /Count 2 >>" },
+      // Página 1: cuenta con anotaciones indirectas (LaTeX hyperref /Annots 20 0 R)
+      { num: 3, content: "<< /Type /Page /Parent 10 0 R /MediaBox [0 0 595.28 841.89] /Annots 20 0 R >>" },
+      // Objeto 20: array indirecto de anotaciones previas
+      { num: 20, content: "[ 21 0 R 22 0 R ]" },
+      { num: 21, content: "<< /Type /Annot /Subtype /Link /Rect [100 700 200 720] >>" },
+      { num: 22, content: "<< /Type /Annot /Subtype /Link /Rect [100 650 200 670] >>" },
+      // Página 2: contenido con caracteres UTF-8 en metadatos y cuerpo
+      { num: 4, content: "<< /Type /Page /Parent 10 0 R /MediaBox [0 0 595.28 841.89] /PieceInfo << /LaTeX << /Author (José María González) >> >> >>" },
+    ];
+
+    objs.sort((a, b) => a.num - b.num);
+
+    for (const obj of objs) {
+      offsets.set(obj.num, encoder.encode(body).length);
+      body += `${obj.num} 0 obj\n${obj.content}\nendobj\n`;
+    }
+
+    const xrefOffset = encoder.encode(body).length;
+    const maxObj = Math.max(...objs.map((o) => o.num));
+    const count = maxObj + 1;
+
+    let xref = `xref\n0 ${count}\n0000000000 65535 f \r\n`;
+    for (let i = 1; i < count; i++) {
+      const off = offsets.get(i);
+      if (off !== undefined) {
+        xref += `${String(off).padStart(10, "0")} 00000 n \r\n`;
+      } else {
+        xref += `0000000000 00000 f \r\n`;
+      }
+    }
+
+    const trailer = `trailer\n<< /Size ${count} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+    const fullBuffer = encoder.encode(body + xref + trailer).buffer;
+
+    const lastXref = findLastXrefOffset(fullBuffer);
+    const lastEof = findLastEofPosition(fullBuffer);
+
+    // 1. Validar que la navegación desciende recursivamente por los nodos /Pages hasta los nodos hoja /Page
+    const page1Info = findPageObject(fullBuffer, lastXref, 0);
+    expect(page1Info.pageObjNumber).toBe(3); // Hoja 1
+    expect(page1Info.existingAnnots).toBe("21 0 R 22 0 R"); // Enlaces resueltos desde 20 0 R
+
+    const page2Info = findPageObject(fullBuffer, lastXref, 1);
+    expect(page2Info.pageObjNumber).toBe(4); // Hoja 2
+
+    const defaultLastPage = findLastPageObject(fullBuffer, lastXref);
+    expect(defaultLastPage.pageObjNumber).toBe(4); // Última página hoja
+
+    // 2. Firmar sobre la Página 1 (que tiene anotaciones LaTeX hyperref)
+    const apStream = generateAppearanceStream(502, 200, 50, "Firmado por: Dr. José María González\nAlgoritmo: ML-DSA-65");
+    const widgetRect = [100, 100, 300, 150];
+
+    const prepared = prepareVisualSignatureUpdate(
+      fullBuffer,
+      lastXref,
+      lastEof,
+      page1Info.pageObjNumber,
+      page1Info.existingAnnots,
+      apStream,
+      widgetRect,
+      "uuid-dr-jose",
+      "Dr. José María González",
+      {
+        pageDict: page1Info.pageDict,
+        createNewSignatureSheet: false,
+        widgetObjNumber: 501,
+        apObjNumber: 502,
+        sigObjectNumber: 503,
+      }
+    );
+
+    // 3. Inspeccionar el objeto de página modificado en el PDF resultante
+    const preparedText = new TextDecoder("latin1").decode(new Uint8Array(prepared.preparedPdfBuffer));
+
+    // Validar regla de oro 1: CERO duplicación de /Annots en el diccionario de página
+    const page3Regex = /\b3\s+0\s+obj[\s\S]*?endobj/g;
+    const page3Matches = [...preparedText.matchAll(page3Regex)];
+    expect(page3Matches.length).toBeGreaterThanOrEqual(1);
+
+    // La última definición (en el bloque incremental) es la activa
+    const updatedPageObjStr = page3Matches[page3Matches.length - 1][0];
+    const annotsMatchesInPage = [...updatedPageObjStr.matchAll(/\/Annots\b/gi)];
+    expect(annotsMatchesInPage.length).toBe(1); // Exactamente una sola clave /Annots
+
+    // Validar que las anotaciones de hipervínculo originales NO se destruyeron y se anexó el widget
+    expect(updatedPageObjStr).toContain("/Annots [ 21 0 R 22 0 R 501 0 R ]");
+
+    // Validar regla de oro 3: Preservación de /AcroForm en /Root
+    // El objeto /AcroForm 30 0 R debe haber sido actualizado con /Fields [ 501 0 R ] y /SigFlags 3
+    const acroFormRegex = /30\s+0\s+obj[\s\S]*?endobj/g;
+    const acroFormMatches = [...preparedText.matchAll(acroFormRegex)];
+    expect(acroFormMatches.length).toBeGreaterThanOrEqual(1);
+    const updatedAcroFormStr = acroFormMatches[acroFormMatches.length - 1][0];
+    expect(updatedAcroFormStr).toContain("/Fields [ 501 0 R ]");
+    expect(updatedAcroFormStr).toContain("/SigFlags 3");
+    expect(updatedAcroFormStr).toContain("/DA (/Helv 0 Tf 0 g)"); // Atributos previos preservados
+
+    // 4. Inyectar firma criptográfica real en el placeholder
+    const dummySignature = "1234567890abcdef1234567890abcdef1234567890abcdef";
+    const signedBuffer = injectSignatureHex(
+      prepared.preparedPdfBuffer,
+      prepared.contentsOffset,
+      prepared.contentsHexLength,
+      dummySignature
+    );
+
+    // 5. Validar con validatePdfStructure la integridad matemática total
+    const validation = validatePdfStructure(signedBuffer);
+    expect(validation.errors).toEqual([]);
+    expect(validation.objectCollisions).toEqual([]);
+    expect(validation.valid).toBe(true);
+    expect(validation.signature?.valid).toBe(true);
+    expect(validation.signature?.byteRangeSumMatchesTotal).toBe(true);
+    expect(validation.signature?.bracketOpenValid).toBe(true);
+    expect(validation.signature?.bracketCloseValid).toBe(true);
+    expect(validation.signature?.hexCharsValid).toBe(true);
+    expect(validation.tail.valid).toBe(true);
+  });
+
+  it("firma un documento con caracteres UTF-8 multi-byte creando /AcroForm en la sección incremental y actualizando /Root sin desfase de bytes", () => {
+    // Documento básico sin /AcroForm previo y con caracteres UTF-8 en contenido
+    const encoder = new TextEncoder();
+    let body = "%PDF-1.7\n";
+    const offsets = new Map<number, number>();
+
+    const objs = [
+      { num: 1, content: "<< /Type /Catalog /Pages 2 0 R >>" },
+      { num: 2, content: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>" },
+      { num: 3, content: "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents (Firma con caracteres UTF-8: á é í ó ú ñ €) >>" },
+    ];
+
+    for (const obj of objs) {
+      offsets.set(obj.num, encoder.encode(body).length);
+      body += `${obj.num} 0 obj\n${obj.content}\nendobj\n`;
+    }
+
+    const xrefOffset = encoder.encode(body).length;
+    let xref = `xref\n0 4\n0000000000 65535 f \r\n`;
+    for (let i = 1; i <= 3; i++) {
+      xref += `${String(offsets.get(i)).padStart(10, "0")} 00000 n \r\n`;
+    }
+    const trailer = `trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+    const fullBuffer = encoder.encode(body + xref + trailer).buffer;
+
+    const lastXref = findLastXrefOffset(fullBuffer);
+    const lastEof = findLastEofPosition(fullBuffer);
+    const lastPage = findLastPageObject(fullBuffer, lastXref);
+
+    const apStream = generateAppearanceStream(998, 200, 50, "Firmado por: Ramón Núñez\nAlgoritmo: ML-DSA-65");
+
+    const prepared = prepareVisualSignatureUpdate(
+      fullBuffer,
+      lastXref,
+      lastEof,
+      lastPage.pageObjNumber,
+      "",
+      apStream,
+      [50, 50, 250, 100],
+      "uuid-ramon",
+      "Ramón Núñez",
+      {
+        pageDict: lastPage.pageDict,
+        widgetObjNumber: 997,
+        apObjNumber: 998,
+        sigObjectNumber: 999,
+        reason: "Certificación PAdES con tildes y eñes",
+        location: "España",
+      }
+    );
+
+    const signedBuffer = injectSignatureHex(
+      prepared.preparedPdfBuffer,
+      prepared.contentsOffset,
+      prepared.contentsHexLength,
+      "cafebabe0123456789abcdef"
+    );
+
+    const validation = validatePdfStructure(signedBuffer);
+    expect(validation.errors).toEqual([]);
+    expect(validation.valid).toBe(true);
+    expect(validation.signature?.valid).toBe(true);
+    expect(validation.signature?.byteRangeSumMatchesTotal).toBe(true);
+
+    // Verificar que /Root contiene la referencia al nuevo /AcroForm y que /AcroForm tiene /SigFlags 3
+    const text = new TextDecoder("latin1").decode(new Uint8Array(signedBuffer));
+    expect(text).toMatch(/\/AcroForm\s+\d+\s+0\s+R/);
+    expect(text).toContain("/SigFlags 3");
+    expect(text).toContain("/Fields [ 997 0 R ]");
   });
 });
 

@@ -35,7 +35,7 @@ function toUint8Array(input: ArrayBuffer | ArrayBufferView): Uint8Array {
  * Decodifica una sección de bytes a cadena usando codificación Latin-1
  * para mantener un mapeo 1-a-1 estricto con los índices de byte del PDF.
  */
-function decodeLatin1(bytes: Uint8Array, start: number, end: number): string {
+export function decodeLatin1(bytes: Uint8Array, start: number, end: number): string {
   const safeStart = Math.max(0, start);
   const safeEnd = Math.min(bytes.length, end);
   if (safeStart >= safeEnd) return "";
@@ -50,6 +50,70 @@ function decodeLatin1(bytes: Uint8Array, start: number, end: number): string {
     str += String.fromCharCode(slice[i]);
   }
   return str;
+}
+
+/**
+ * Codifica una cadena a Uint8Array mapeando cada carácter a su byte Latin-1 (0x00 - 0xFF).
+ * Preserva de forma determinista la correspondencia binaria 1-a-1 sin distorsión ni expansión UTF-8.
+ */
+export function encodeLatin1(str: string): Uint8Array {
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    bytes[i] = str.charCodeAt(i) & 0xff;
+  }
+  return bytes;
+}
+
+/**
+ * Extrae con balanceo estricto el primer diccionario << ... >> de una cadena,
+ * evitando absorber diccionarios o contenidos de objetos subsiguientes.
+ */
+export function extractRootDictionary(text: string): string {
+  const start = text.indexOf("<<");
+  if (start === -1) return text;
+
+  let depth = 0;
+  let inString = false;
+  let inHex = false;
+  let i = start;
+
+  while (i < text.length) {
+    if (inString) {
+      if (text[i] === "\\") {
+        i += 2;
+        continue;
+      }
+      if (text[i] === ")") inString = false;
+      i++;
+      continue;
+    }
+    if (inHex) {
+      if (text[i] === ">") inHex = false;
+      i++;
+      continue;
+    }
+    if (text[i] === "(") {
+      inString = true;
+      i++;
+      continue;
+    }
+    if (text[i] === "<" && text[i + 1] === "<") {
+      depth++;
+      i += 2;
+      continue;
+    }
+    if (text[i] === ">" && text[i + 1] === ">") {
+      depth--;
+      if (depth === 0) {
+        return text.substring(start, i + 2);
+      }
+      i += 2;
+      continue;
+    }
+    i++;
+  }
+
+  return text.substring(start);
 }
 
 /**
@@ -466,7 +530,7 @@ export function parseXrefTable(buffer: ArrayBuffer, xrefOffset: number): Map<num
 /**
  * Localiza el byte offset de un objeto indirecto ('<objNum> 0 obj') dentro del buffer binario.
  */
-function findObjectOffset(bytes: Uint8Array, objNum: number): number | null {
+export function findObjectOffset(bytes: Uint8Array, objNum: number): number | null {
   const target = new TextEncoder().encode(`${objNum} 0 obj`);
   const targetLen = target.length;
   const maxIdx = bytes.length - targetLen;
@@ -583,11 +647,14 @@ export function extractObject(
   const dictReadLimit = Math.min(bytes.length, objStartOffset + 8192);
   const dictChunk = decodeLatin1(bytes, objStartOffset, dictReadLimit);
 
-  // 3. Verificar si el objeto contiene un stream binario
-  // Según ISO 32000, la palabra clave 'stream' sigue inmediatamente al diccionario
+  // 3. Verificar si el objeto contiene un stream binario o es un objeto regular
+  // Un objeto contiene stream SI Y SOLO SI la palabra clave 'stream' aparece ANTES de 'endobj'
+  const endObjMatch = /\bendobj\b/i.exec(dictChunk);
   const streamMatch = /\bstream(\r\n|\n|\r)/.exec(dictChunk);
 
-  if (streamMatch) {
+  const hasStream = !!streamMatch && (!endObjMatch || streamMatch.index < endObjMatch.index);
+
+  if (hasStream && streamMatch) {
     // Objeto con stream binario: extraer únicamente la cabecera y el diccionario
     const streamKeywordIdx = streamMatch.index;
     const headerAndDict = dictChunk.substring(0, streamKeywordIdx).trim();
@@ -614,9 +681,8 @@ export function extractObject(
   }
 
   // 4. Objeto regular sin stream: buscar 'endobj' directamente
-  const endObjIdx = dictChunk.indexOf("endobj");
-  if (endObjIdx !== -1) {
-    return dictChunk.substring(0, endObjIdx + "endobj".length).trim();
+  if (endObjMatch) {
+    return dictChunk.substring(0, endObjMatch.index + endObjMatch[0].length).trim();
   }
 
   // Si el objeto supera 8KB (ej. arrays masivos), buscar 'endobj' en ventanas sucesivas
@@ -637,38 +703,50 @@ export function extractObject(
 
 /**
  * Extrae el contenido del array /Annots existente en el diccionario de una página,
- * resolviendo tanto arrays literales [/Annots [ 15 0 R ... ]] como referencias indirectas [/Annots 25 0 R].
+ * resolviendo de manera exhaustiva tanto arrays literales [/Annots [ 15 0 R ... ]]
+ * como referencias indirectas [/Annots 25 0 R] (típicas de LaTeX hyperref).
+ * Deduplica referencias y devuelve una lista de referencias indirectas normalizada.
  */
-function extractExistingAnnots(
+export function extractExistingAnnots(
   pageDict: string,
   buffer: ArrayBuffer,
   xrefMap: Map<number, number>
 ): string {
-  // 1. Array directo: /Annots [ 15 0 R 16 0 R ]
-  const directMatch = /\/Annots\s*\[([\s\S]*?)\]/.exec(pageDict);
-  if (directMatch) {
-    return directMatch[1].trim().replace(/\s+/g, " ");
+  const refs: string[] = [];
+
+  // 1. Array directo: /Annots [ 15 0 R 16 0 R ... ]
+  const directMatches = pageDict.matchAll(/\/Annots\s*\[([\s\S]*?)\]/gi);
+  for (const m of directMatches) {
+    const found = m[1].matchAll(/(\d+\s+\d+\s+R)/g);
+    for (const f of found) {
+      const clean = f[1].trim().replace(/\s+/g, " ");
+      if (!refs.includes(clean)) refs.push(clean);
+    }
   }
 
-  // 2. Referencia indirecta: /Annots 25 0 R
-  const indirectMatch = /\/Annots\s+(\d+)\s+\d+\s+R/.exec(pageDict);
-  if (indirectMatch) {
-    const annotsObjNum = parseInt(indirectMatch[1], 10);
+  // 2. Referencia indirecta: /Annots 25 0 R (o múltiples)
+  const indirectMatches = pageDict.matchAll(/\/Annots\s+(\d+)\s+\d+\s+R/gi);
+  for (const im of indirectMatches) {
+    const annotsObjNum = parseInt(im[1], 10);
     const offset = xrefMap.get(annotsObjNum) ?? findObjectOffset(toUint8Array(buffer), annotsObjNum);
     if (offset !== undefined && offset !== null) {
       try {
-        const objText = extractObject(buffer, offset);
+        const objText = extractObject(buffer, offset, xrefMap);
         const arrayMatch = /\[([\s\S]*?)\]/.exec(objText);
         if (arrayMatch) {
-          return arrayMatch[1].trim().replace(/\s+/g, " ");
+          const found = arrayMatch[1].matchAll(/(\d+\s+\d+\s+R)/g);
+          for (const f of found) {
+            const clean = f[1].trim().replace(/\s+/g, " ");
+            if (!refs.includes(clean)) refs.push(clean);
+          }
         }
       } catch {
-        // En caso de error al resolver la referencia indirecta, continuar con string vacío
+        // En caso de error al resolver la referencia indirecta, continuar
       }
     }
   }
 
-  return "";
+  return refs.join(" ");
 }
 
 export interface LastPageInfo {
@@ -685,21 +763,19 @@ export interface LastPageInfo {
 }
 
 /**
- * Localiza la última página del documento (/Type /Page) navegando el catálogo (/Root),
- * el árbol de páginas (/Pages) y sus hijos (/Kids) de forma recursiva.
- * Extrae además la metadata completa del árbol de páginas, lista de anotaciones previa (/Annots),
- * dimensiones de MediaBox y detección de Hoja de Firmas existente (ISO 32000).
- *
- * Soporta de forma transparente tanto PDFs tradicionales como streams /Type /XRef modernos (ISO 32000-1 §7.5.8).
+ * Localiza la página indicada (o la última por defecto) en el árbol de páginas (/Pages -> /Kids -> /Page).
+ * Desciende recursivamente a través de todos los nodos intermedios /Pages hasta alcanzar
+ * estrictamente el nodo hoja con /Type /Page, previniendo inyecciones en nodos intermedios.
  *
  * @param buffer - ArrayBuffer del documento PDF.
  * @param xrefOffset - Byte offset de la última tabla o stream XRef activo.
+ * @param pageIndex - Índice opcional de la página objetivo (0-indexed). Si no se define o es negativo, selecciona la última página.
  * @returns Objeto LastPageInfo con el número de página, diccionarios, conteo de firmas y metadatos.
- * @throws {Error} Si la estructura del catálogo o árbol de páginas es inválida.
  */
-export function findLastPageObject(
+export function findPageObject(
   buffer: ArrayBuffer,
-  xrefOffset: number
+  xrefOffset: number,
+  pageIndex?: number
 ): LastPageInfo {
   const bytes = toUint8Array(buffer);
   const xrefMap = parseXrefTable(buffer, xrefOffset);
@@ -755,7 +831,7 @@ export function findLastPageObject(
 
   // Extraer /Count del árbol de páginas raíz
   const countMatch = /\/Count\s+(\d+)/.exec(pagesRootText);
-  const pagesCount = countMatch ? parseInt(countMatch[1], 10) : 1;
+  let pagesCount = countMatch ? parseInt(countMatch[1], 10) : 1;
 
   // Extraer /Kids del objeto /Pages raíz
   const rootKidsMatch = /\/Kids\s*\[([\s\S]*?)\]/i.exec(pagesRootText);
@@ -777,24 +853,47 @@ export function findLastPageObject(
     ];
   }
 
-  // 3. Función recursiva para navegar el árbol /Pages -> /Kids -> /Page
-  function resolveLastPage(objNum: number): {
+  interface ResolvedLeafPage {
     pageObjNumber: number;
     pageDict: string;
     existingAnnots: string;
     isSignatureSheet: boolean;
     pageMediaBox: [number, number, number, number];
-  } {
-    const offset = xrefMap.get(objNum) ?? findObjectOffset(bytes, objNum);
+  }
+
+  // 3. Navegación recursiva del árbol de páginas (/Pages -> /Kids -> /Page)
+  function collectLeafPages(
+    nodeObjNum: number,
+    inheritedMediaBox: [number, number, number, number],
+    visited = new Set<number>()
+  ): ResolvedLeafPage[] {
+    if (visited.has(nodeObjNum)) return [];
+    visited.add(nodeObjNum);
+
+    const offset = xrefMap.get(nodeObjNum) ?? findObjectOffset(bytes, nodeObjNum);
     if (offset === undefined || offset === null) {
-      throw new Error(`PDFParser: Offset no encontrado para el nodo del árbol de páginas (${objNum}).`);
+      throw new Error(`PDFParser: Offset no encontrado para el nodo del árbol de páginas (${nodeObjNum}).`);
     }
 
     const objText = extractObject(buffer, offset, xrefMap);
     const isPagesNode = /\/Type\s*\/Pages\b/i.test(objText);
     const isPageNode = /\/Type\s*\/Page\b/i.test(objText) && !isPagesNode;
 
-    if (isPageNode) {
+    let currentMediaBox = inheritedMediaBox;
+    const mediaMatch = /\/MediaBox\s*\[\s*([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s*\]/.exec(objText);
+    if (mediaMatch) {
+      currentMediaBox = [
+        parseFloat(mediaMatch[1]),
+        parseFloat(mediaMatch[2]),
+        parseFloat(mediaMatch[3]),
+        parseFloat(mediaMatch[4]),
+      ];
+    }
+
+    const kidsMatch = /\/Kids\s*\[([\s\S]*?)\]/i.exec(objText);
+
+    // Si es un nodo hoja (/Type /Page y sin /Kids):
+    if (isPageNode || (!isPagesNode && !kidsMatch)) {
       const existingAnnots = extractExistingAnnots(objText, buffer, xrefMap);
 
       const isSignatureSheet =
@@ -802,62 +901,53 @@ export function findLastPageObject(
         /\/PieceInfo[\s\S]*?\/QProof/i.test(objText) ||
         /\(HOJA DE FIRMAS Y CERTIFICACION DIGITAL\)/i.test(objText);
 
-      let pageMediaBox = fallbackMediaBox;
-      const mediaMatch = /\/MediaBox\s*\[\s*([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s*\]/.exec(
-        objText
-      );
-      if (mediaMatch) {
-        pageMediaBox = [
-          parseFloat(mediaMatch[1]),
-          parseFloat(mediaMatch[2]),
-          parseFloat(mediaMatch[3]),
-          parseFloat(mediaMatch[4]),
-        ];
-      }
+      const pageDict = extractRootDictionary(objText);
 
-      // Extraer diccionario exterior completo desde el primer << hasta el último >>
-      const startDict = objText.indexOf("<<");
-      const endDict = objText.lastIndexOf(">>");
-      const pageDict = startDict !== -1 && endDict !== -1 ? objText.substring(startDict, endDict + 2) : objText;
-
-      return {
-        pageObjNumber: objNum,
-        pageDict,
-        existingAnnots,
-        isSignatureSheet,
-        pageMediaBox,
-      };
-    }
-
-    // Nodo intermedio /Pages: extraer /Kids
-    const kidsMatch = /\/Kids\s*\[([\s\S]*?)\]/i.exec(objText);
-    if (!kidsMatch) {
-      if (!isPagesNode) {
-        const existingAnnots = extractExistingAnnots(objText, buffer, xrefMap);
-        const isSignatureSheet =
-          /\/QProofSheet\b/i.test(objText) ||
-          /\/PieceInfo[\s\S]*?\/QProof/i.test(objText);
-        return {
-          pageObjNumber: objNum,
-          pageDict: objText,
+      return [
+        {
+          pageObjNumber: nodeObjNum,
+          pageDict,
           existingAnnots,
           isSignatureSheet,
-          pageMediaBox: fallbackMediaBox,
-        };
-      }
-      throw new Error(`PDFParser: El nodo /Pages (${objNum}) no contiene el array /Kids.`);
+          pageMediaBox: currentMediaBox,
+        },
+      ];
+    }
+
+    // Nodo intermedio /Pages: descender recursivamente por cada uno de sus /Kids
+    if (!kidsMatch) {
+      throw new Error(`PDFParser: El nodo /Pages (${nodeObjNum}) no contiene el array /Kids ni es una página hoja.`);
     }
 
     const kidRefs = [...kidsMatch[1].matchAll(/(\d+)\s+\d+\s+R/g)].map((m) => parseInt(m[1], 10));
     if (kidRefs.length === 0) {
-      throw new Error(`PDFParser: El array /Kids del nodo /Pages (${objNum}) está vacío.`);
+      throw new Error(`PDFParser: El array /Kids del nodo /Pages (${nodeObjNum}) está vacío.`);
     }
 
-    const lastKid = kidRefs[kidRefs.length - 1];
-    return resolveLastPage(lastKid);
+    const leaves: ResolvedLeafPage[] = [];
+    for (const kid of kidRefs) {
+      const childLeaves = collectLeafPages(kid, currentMediaBox, visited);
+      leaves.push(...childLeaves);
+    }
+
+    return leaves;
   }
 
-  const resolved = resolveLastPage(pagesRootObjNum);
+  const allLeafPages = collectLeafPages(pagesRootObjNum, fallbackMediaBox);
+  if (allLeafPages.length === 0) {
+    throw new Error("PDFParser: No se encontraron páginas válidas (/Type /Page) en el documento.");
+  }
+
+  pagesCount = Math.max(pagesCount, allLeafPages.length);
+
+  // Seleccionar la página solicitada: si pageIndex está definido y en rango [0, allLeafPages.length - 1], usarlo.
+  // En caso contrario (por defecto o si pageIndex no es válido), seleccionar la última página.
+  let targetIndex = allLeafPages.length - 1;
+  if (pageIndex !== undefined && Number.isInteger(pageIndex) && pageIndex >= 0 && pageIndex < allLeafPages.length) {
+    targetIndex = pageIndex;
+  }
+
+  const resolved = allLeafPages[targetIndex];
 
   // Calcular conteo de firmas en las anotaciones existentes
   const annotsRefs = resolved.existingAnnots
@@ -865,13 +955,8 @@ export function findLastPageObject(
     : 0;
   const signatureCountOnSheet = Math.floor(annotsRefs);
 
-  // Extraer el diccionario exterior de /Pages raíz
-  const rootStartDict = pagesRootText.indexOf("<<");
-  const rootEndDict = pagesRootText.lastIndexOf(">>");
-  const pagesRootDict =
-    rootStartDict !== -1 && rootEndDict !== -1
-      ? pagesRootText.substring(rootStartDict, rootEndDict + 2)
-      : pagesRootText;
+  // Extraer el diccionario exterior de /Pages raíz con balanceo estricto
+  const pagesRootDict = extractRootDictionary(pagesRootText);
 
   return {
     pageObjNumber: resolved.pageObjNumber,
@@ -887,4 +972,5 @@ export function findLastPageObject(
   };
 }
 
+export const findLastPageObject = findPageObject;
 export const findDocumentPagesStructure = findLastPageObject;
